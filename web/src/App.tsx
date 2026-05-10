@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Weather from './Weather'
 
 // In production, set VITE_API_URL at build time (e.g. via the GitHub
 // Actions repo variable) to the deployed Worker's origin, e.g.
@@ -23,6 +24,7 @@ function App() {
       <p>
         Backend status: <strong>{health}</strong>
       </p>
+      <Weather />
     </div>
   )
 }
