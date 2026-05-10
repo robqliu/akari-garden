@@ -18,6 +18,11 @@ jobs:
       BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Number of the canonical "cleanup is failing" tracker issue.
+      # All cleanup failures append a comment to this issue (and
+      # reopen it if it's closed). Leave at 0 to disable the tracker
+      # — the workflow run will still go red on failure.
+      TRACKER_ISSUE_NUMBER: 0
     steps:
       - name: Delete preview deployments for the closed PR's branch
         run: |
@@ -56,65 +61,38 @@ jobs:
           done
           echo "Deleted $deleted preview deployment(s) for branch '$BRANCH_NAME'"
 
-      # Failure visibility without issue spam: keep exactly one issue
-      # with the `cleanup-failure` label. First failure creates it;
-      # subsequent failures append a comment (and reopen it if it was
-      # closed). Close it once you've fixed the underlying problem —
-      # if it breaks again, it'll be reopened with a fresh comment.
-      - name: Record cleanup failure on the rolling tracker issue
-        if: failure()
+      # Surface failures on the canonical tracker issue (number is
+      # hardcoded above as TRACKER_ISSUE_NUMBER). Appends a comment
+      # and reopens the issue if it was closed. Skipped if the
+      # tracker number is left at 0 (the workflow run still goes red,
+      # which is the primary signal).
+      - name: Append failure to tracker issue
+        if: ${{ failure() && env.TRACKER_ISSUE_NUMBER != '0' }}
         uses: actions/github-script@v7
         with:
           script: |
+            const issueNumber = parseInt(process.env.TRACKER_ISSUE_NUMBER, 10);
             const branch = process.env.BRANCH_NAME;
             const prNumber = context.payload.pull_request.number;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const label = 'cleanup-failure';
 
-            const commentBody = [
-              `Cleanup failed for PR #${prNumber} (branch \`${branch}\`).`,
-              `Failed run: ${runUrl}`,
-            ].join('\n');
-
-            const { data: existing } = await github.rest.issues.listForRepo({
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              labels: label,
-              state: 'all',
-              per_page: 1,
+              issue_number: issueNumber,
+              body: `Cleanup failed for PR #${prNumber} (branch \`${branch}\`).\nFailed run: ${runUrl}`,
             });
 
-            if (existing.length > 0) {
-              const issue = existing[0];
-              await github.rest.issues.createComment({
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            if (issue.state === 'closed') {
+              await github.rest.issues.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: issue.number,
-                body: commentBody,
-              });
-              if (issue.state === 'closed') {
-                await github.rest.issues.update({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: issue.number,
-                  state: 'open',
-                });
-              }
-            } else {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: 'Cloudflare Pages preview cleanup is failing',
-                body: [
-                  `The \`cleanup-pages-previews\` workflow has started failing.`,
-                  ``,
-                  commentBody,
-                  ``,
-                  `If this keeps failing, preview deployments will accumulate in the Cloudflare Pages dashboard.`,
-                  `Likely causes: token lost \`Cloudflare Pages: Edit\` scope, Cloudflare API outage, or a breaking change to the deployments API response shape.`,
-                  ``,
-                  `Subsequent failures will be appended here as comments rather than spawning new issues. Close this when the underlying problem is fixed; it'll auto-reopen if it breaks again.`,
-                ].join('\n'),
-                labels: [label],
+                issue_number: issueNumber,
+                state: 'open',
               });
             }
