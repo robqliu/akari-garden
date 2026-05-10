@@ -56,11 +56,12 @@ jobs:
           done
           echo "Deleted $deleted preview deployment(s) for branch '$BRANCH_NAME'"
 
-      # Surface failures loudly: the workflow run itself goes red, and
-      # we also open an issue so it's visible without having to notice
-      # the Actions tab. Filter by label `cleanup-failure` if these
-      # become noisy.
-      - name: Open issue on cleanup failure
+      # Failure visibility without issue spam: keep exactly one issue
+      # with the `cleanup-failure` label. First failure creates it;
+      # subsequent failures append a comment (and reopen it if it was
+      # closed). Close it once you've fixed the underlying problem —
+      # if it breaks again, it'll be reopened with a fresh comment.
+      - name: Record cleanup failure on the rolling tracker issue
         if: failure()
         uses: actions/github-script@v7
         with:
@@ -68,17 +69,52 @@ jobs:
             const branch = process.env.BRANCH_NAME;
             const prNumber = context.payload.pull_request.number;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            await github.rest.issues.create({
+            const label = 'cleanup-failure';
+
+            const commentBody = [
+              `Cleanup failed for PR #${prNumber} (branch \`${branch}\`).`,
+              `Failed run: ${runUrl}`,
+            ].join('\n');
+
+            const { data: existing } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `Cloudflare Pages preview cleanup failed (PR #${prNumber}, branch ${branch})`,
-              body: [
-                `The \`cleanup-pages-previews\` workflow failed when PR #${prNumber} closed.`,
-                `Branch: \`${branch}\``,
-                `Failed run: ${runUrl}`,
-                ``,
-                `If this keeps failing, preview deployments will accumulate in the Cloudflare Pages dashboard.`,
-                `Likely causes: token lost \`Cloudflare Pages: Edit\` scope, Cloudflare API outage, or a breaking change to the deployments API response shape.`,
-              ].join('\n'),
-              labels: ['cleanup-failure'],
+              labels: label,
+              state: 'all',
+              per_page: 1,
             });
+
+            if (existing.length > 0) {
+              const issue = existing[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: commentBody,
+              });
+              if (issue.state === 'closed') {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  state: 'open',
+                });
+              }
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Cloudflare Pages preview cleanup is failing',
+                body: [
+                  `The \`cleanup-pages-previews\` workflow has started failing.`,
+                  ``,
+                  commentBody,
+                  ``,
+                  `If this keeps failing, preview deployments will accumulate in the Cloudflare Pages dashboard.`,
+                  `Likely causes: token lost \`Cloudflare Pages: Edit\` scope, Cloudflare API outage, or a breaking change to the deployments API response shape.`,
+                  ``,
+                  `Subsequent failures will be appended here as comments rather than spawning new issues. Close this when the underlying problem is fixed; it'll auto-reopen if it breaks again.`,
+                ].join('\n'),
+                labels: [label],
+              });
+            }
