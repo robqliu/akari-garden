@@ -1,0 +1,49 @@
+# Builds the web app and deploys it to Cloudflare Pages.
+#
+# Production deploys run on every push to `main` and target the
+# `main` branch on Pages (i.e. the production environment).
+# Pull requests get a unique preview deployment named after the
+# head ref.
+#
+# Required repository secrets:
+#   CLOUDFLARE_API_TOKEN  — token with the "Cloudflare Pages: Edit"
+#                           permission scoped to the akari-garden account.
+#   CLOUDFLARE_ACCOUNT_ID — Cloudflare account ID (visible in the dashboard).
+#
+# The Pages project itself ("akari-garden") must already exist in the
+# Cloudflare dashboard. Create it once with the production branch set
+# to `main` and no build command (this workflow uploads pre-built assets).
+name: Deploy web to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+      - run: pnpm --filter @akari-garden/web build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web/dist --project-name=akari-garden --branch=${{ github.head_ref || github.ref_name }} --commit-dirty=true
