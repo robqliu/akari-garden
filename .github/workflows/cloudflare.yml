@@ -1,31 +1,3 @@
-# Builds and deploys both the web app (Cloudflare Pages) and the
-# Hono backend (Cloudflare Workers).
-#
-# - Pushes to `main` deploy both to production.
-# - Pull requests get a Pages preview deployment for the web app.
-#   The Worker is *not* redeployed for PRs (we deploy a single
-#   production worker from main); the preview FE will hit whatever
-#   Worker is currently live.
-#
-# Required repository configuration:
-#
-#   Secrets:
-#     CLOUDFLARE_API_TOKEN  — token with both:
-#                                Account → Cloudflare Pages: Edit
-#                                Account → Workers Scripts: Edit
-#                             scoped to the akari-garden account.
-#     CLOUDFLARE_ACCOUNT_ID — Cloudflare account ID.
-#
-#   Variables (Settings → Secrets and variables → Actions → Variables):
-#     VITE_API_URL — origin of the deployed Worker, e.g.
-#                    https://akari-garden-api.<account-subdomain>.workers.dev
-#                    Set this after the Worker's first successful
-#                    deploy so the web app calls the right host.
-#
-# Cloudflare-side prerequisites:
-#   - Pages project named `akari-garden` (production branch `main`).
-#   - The Worker `akari-garden-api` will be auto-created on first
-#     deploy by `wrangler deploy`; no manual setup needed.
 name: Deploy to Cloudflare
 
 on:
@@ -73,9 +45,11 @@ jobs:
   deploy_api:
     name: Deploy API (Workers)
     runs-on: ubuntu-latest
-    # Only deploy the Worker on pushes to main. PRs do not get a
-    # preview Worker; if/when we want that, we can use wrangler
-    # `--env preview` per-PR or the `--name` override.
+    # Main-only: this job deploys to a single named Worker
+    # (`akari-garden-api`), so running on PRs would overwrite the
+    # production Worker that the live site depends on. Per-PR preview
+    # Workers would need a separate Worker name per PR — see
+    # https://developers.cloudflare.com/workers/wrangler/environments/.
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
