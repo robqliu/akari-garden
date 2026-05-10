@@ -67,7 +67,7 @@ jobs:
       # tracker number is left at 0 (the workflow run still goes red,
       # which is the primary signal).
       - name: Append failure to tracker issue
-        if: ${{ failure() && env.TRACKER_ISSUE_NUMBER != '0' }}
+        if: ${{ failure() && env.TRACKER_ISSUE_NUMBER != '7' }}
         uses: actions/github-script@v7
         with:
           script: |
