@@ -1,0 +1,69 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_web:
+    name: Deploy web (Pages)
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+      - name: Build web
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: pnpm --filter @akari-garden/web build
+
+      # See cloudflare-pages.yml history for why this calls wrangler
+      # via `pnpm dlx` rather than cloudflare/wrangler-action@v3
+      # (the action's `pnpm add` install step fails in workspaces).
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          pnpm dlx wrangler@latest pages deploy web/dist \
+            --project-name=akari-garden \
+            --branch="$BRANCH_NAME" \
+            --commit-dirty=true
+
+  deploy_api:
+    name: Deploy API (Workers)
+    runs-on: ubuntu-latest
+    # Main-only: this job deploys to a single named Worker
+    # (`akari-garden-api`), so running on PRs would overwrite the
+    # production Worker that the live site depends on. Per-PR preview
+    # Workers would need a separate Worker name per PR — see
+    # https://developers.cloudflare.com/workers/wrangler/environments/.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Deploy Worker
+        working-directory: server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@latest deploy

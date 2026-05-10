@@ -1,0 +1,11 @@
+{
+  // Cloudflare Workers deploy config for the Hono backend. Read by the
+  // wrangler CLI when the deploy_api job in .github/workflows/cloudflare.yml
+  // runs. Field reference: https://developers.cloudflare.com/workers/wrangler/configuration/
+  "name": "akari-garden-api",
+  "main": "src/app.ts",
+  "compatibility_date": "2026-05-10",
+  "observability": {
+    "enabled": true
+  }
+}
