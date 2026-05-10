@@ -1,0 +1,17 @@
+{
+  // Cloudflare Workers config for the Hono backend.
+  //
+  // Wrangler bundles `main` (TypeScript) into an ES-module Worker at
+  // deploy time using esbuild — no separate build step required.
+  //
+  // Once deployed, the Worker is reachable at:
+  //   https://akari-garden-api.<account-subdomain>.workers.dev
+  // The exact URL is printed by `wrangler deploy` and is also visible
+  // in the Cloudflare dashboard under Workers & Pages.
+  "name": "akari-garden-api",
+  "main": "src/app.ts",
+  "compatibility_date": "2026-05-10",
+  "observability": {
+    "enabled": true
+  }
+}

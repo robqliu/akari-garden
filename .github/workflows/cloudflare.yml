@@ -1,0 +1,95 @@
+# Builds and deploys both the web app (Cloudflare Pages) and the
+# Hono backend (Cloudflare Workers).
+#
+# - Pushes to `main` deploy both to production.
+# - Pull requests get a Pages preview deployment for the web app.
+#   The Worker is *not* redeployed for PRs (we deploy a single
+#   production worker from main); the preview FE will hit whatever
+#   Worker is currently live.
+#
+# Required repository configuration:
+#
+#   Secrets:
+#     CLOUDFLARE_API_TOKEN  — token with both:
+#                                Account → Cloudflare Pages: Edit
+#                                Account → Workers Scripts: Edit
+#                             scoped to the akari-garden account.
+#     CLOUDFLARE_ACCOUNT_ID — Cloudflare account ID.
+#
+#   Variables (Settings → Secrets and variables → Actions → Variables):
+#     VITE_API_URL — origin of the deployed Worker, e.g.
+#                    https://akari-garden-api.<account-subdomain>.workers.dev
+#                    Set this after the Worker's first successful
+#                    deploy so the web app calls the right host.
+#
+# Cloudflare-side prerequisites:
+#   - Pages project named `akari-garden` (production branch `main`).
+#   - The Worker `akari-garden-api` will be auto-created on first
+#     deploy by `wrangler deploy`; no manual setup needed.
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_web:
+    name: Deploy web (Pages)
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+      - name: Build web
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: pnpm --filter @akari-garden/web build
+
+      # See cloudflare-pages.yml history for why this calls wrangler
+      # via `pnpm dlx` rather than cloudflare/wrangler-action@v3
+      # (the action's `pnpm add` install step fails in workspaces).
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          pnpm dlx wrangler@latest pages deploy web/dist \
+            --project-name=akari-garden \
+            --branch="$BRANCH_NAME" \
+            --commit-dirty=true
+
+  deploy_api:
+    name: Deploy API (Workers)
+    runs-on: ubuntu-latest
+    # Only deploy the Worker on pushes to main. PRs do not get a
+    # preview Worker; if/when we want that, we can use wrangler
+    # `--env preview` per-PR or the `--name` override.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Deploy Worker
+        working-directory: server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@latest deploy
