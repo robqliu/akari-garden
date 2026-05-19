@@ -1,11 +1,16 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
-const app = new Hono()
+import type { AppEnv } from './lib/env.js'
+import { buildAuthRouter } from './routes/auth.js'
+
+const app = new Hono<AppEnv>()
 
 app.use('*', cors())
 
 app.get('/health', (c) => c.json({ status: 'ok' }))
+
+app.route('/api/auth', buildAuthRouter())
 
 export { app }
 
