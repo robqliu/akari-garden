@@ -7,5 +7,17 @@
   "compatibility_date": "2026-05-10",
   "observability": {
     "enabled": true
-  }
+  },
+  // KV namespace storing per-user OAuth records (Google refresh token,
+  // calendar id, etc.). Create with:
+  //   wrangler kv:namespace create USERS_KV
+  // then paste the returned id below. The placeholder id keeps the
+  // config valid for local dev where the Node entrypoint injects an
+  // in-memory polyfill instead of a real KV binding.
+  "kv_namespaces": [
+    {
+      "binding": "USERS_KV",
+      "id": "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
+    }
+  ]
 }
