@@ -1,13 +1,18 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
-const app = new Hono()
+import type { AppEnv } from './lib/env.js'
+import { buildAuthRouter } from './routes/auth.js'
 
-app.use('*', cors())
+export function buildApp(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>()
+  app.use('*', cors())
+  app.get('/health', (c) => c.json({ status: 'ok' }))
+  app.route('/api/auth', buildAuthRouter())
+  return app
+}
 
-app.get('/health', (c) => c.json({ status: 'ok' }))
-
-export { app }
+export const app = buildApp()
 
 // Cloudflare Workers picks up the default export when this file is
 // deployed as a Worker (see server/wrangler.jsonc). If the deployed
