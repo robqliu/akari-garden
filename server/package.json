@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/dev-server.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/dev-server.js",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest"
