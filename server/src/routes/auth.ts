@@ -4,16 +4,11 @@ import { sign as signJwt } from 'hono/utils/jwt/jwt'
 
 import type { AppEnv } from '../lib/env.js'
 
-// OAuth scopes we ask Google to grant:
-//   openid + userinfo.email    - so the callback can identify the user
-//   calendar.app.created       - narrowest Calendar scope; only grants
-//                                access to calendars our app creates,
-//                                not the user's primary calendar
-const SCOPES = [
-  'openid',
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/calendar.app.created',
-].join(' ')
+// `openid` is the minimum scope needed for the OAuth flow to round-
+// trip; Google rejects authorize requests with no scope. Additional
+// scopes (userinfo.email, calendar.app.created) get added in the
+// commits that actually consume the granted permissions.
+const SCOPES = 'openid'
 
 // Short-lived cookie holding the state token. The callback verifies
 // the `state` query param Google echoes back matches this cookie
@@ -49,6 +44,10 @@ export function buildAuthRouter(): Hono<AppEnv> {
 
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     url.searchParams.set('client_id', c.env.GOOGLE_CLIENT_ID)
+    // The /api/auth/google/callback route lands in the next commit.
+    // Until then, completing the consent screen 404s — pointing here
+    // now keeps the OAuth client's authorized redirect URI list stable
+    // across commits.
     url.searchParams.set('redirect_uri', `${c.env.PUBLIC_API_URL}/api/auth/google/callback`)
     url.searchParams.set('response_type', 'code')
     url.searchParams.set('scope', SCOPES)

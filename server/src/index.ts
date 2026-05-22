@@ -3,11 +3,18 @@ import { serve } from '@hono/node-server'
 import { app } from './app.js'
 import type { Bindings } from './lib/env.js'
 
-// Production runs on Cloudflare Workers, which passes Bindings (the
-// OAuth secrets) to app.fetch automatically. In Node dev we fabricate
-// that argument from process.env. tsx's --env-file-if-exists flag
-// loads server/.env (gitignored); see server/.env.example for the
-// variables to set.
+// This file is dev-only. In production, wrangler.jsonc's `main` field
+// points at src/app.ts, the Cloudflare Workers runtime imports that
+// module's default export (the Hono app), and the runtime itself
+// calls `app.fetch(request, env, ctx)` on every incoming request —
+// passing the Bindings (secrets configured with `wrangler secret
+// put`) as the env argument. We never start a server in production;
+// Workers does that part.
+//
+// For local dev there's no Workers runtime, so this file bridges to
+// Node's @hono/node-server and fabricates the env argument from
+// process.env. tsx's --env-file-if-exists flag loads server/.env;
+// see server/.env.example for the variables to set.
 
 const port = parseInt(process.env.PORT || '3000', 10)
 

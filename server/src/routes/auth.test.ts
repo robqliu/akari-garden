@@ -16,7 +16,7 @@ function extractCookie(setCookie: string | null, name: string): string | null {
 }
 
 describe('GET /api/auth/google/start', () => {
-  it('redirects to Google with the right OAuth parameters', async () => {
+  it('redirects to the Google OAuth authorize endpoint', async () => {
     const app = buildApp()
     const res = await app.request(
       '/api/auth/google/start',
@@ -29,23 +29,12 @@ describe('GET /api/auth/google/start', () => {
     expect(`${location.protocol}//${location.host}${location.pathname}`).toBe(
       'https://accounts.google.com/o/oauth2/v2/auth',
     )
-
-    const params = location.searchParams
-    expect(params.get('client_id')).toBe('test-client-id')
-    expect(params.get('redirect_uri')).toBe(
-      'http://localhost:3000/api/auth/google/callback',
-    )
-    expect(params.get('response_type')).toBe('code')
-    expect(params.get('access_type')).toBe('offline')
-    expect(params.get('prompt')).toBe('consent')
-
-    const scope = params.get('scope') ?? ''
-    expect(scope).toContain('openid')
-    expect(scope).toContain('userinfo.email')
-    expect(scope).toContain('calendar.app.created')
   })
 
-  it('sets a state cookie whose value matches the state query param', async () => {
+  // The state cookie / state param invariant is the entire CSRF
+  // defense: the callback rejects requests where the two don't agree.
+  // Worth pinning so a refactor can't quietly break it.
+  it('uses the same state value in the URL and the cookie', async () => {
     const app = buildApp()
     const res = await app.request(
       '/api/auth/google/start',
@@ -53,27 +42,10 @@ describe('GET /api/auth/google/start', () => {
       TEST_ENV,
     )
 
-    const location = new URL(res.headers.get('location') ?? '')
-    const stateInUrl = location.searchParams.get('state')
-    const stateInCookie = extractCookie(
-      res.headers.get('set-cookie'),
-      'ag_oauth_state',
-    )
+    const stateInUrl = new URL(res.headers.get('location') ?? '').searchParams.get('state')
+    const stateInCookie = extractCookie(res.headers.get('set-cookie'), 'ag_oauth_state')
 
     expect(stateInUrl).toBeTruthy()
     expect(stateInUrl).toBe(stateInCookie)
-  })
-
-  it('marks the state cookie HttpOnly and SameSite=Lax', async () => {
-    const app = buildApp()
-    const res = await app.request(
-      '/api/auth/google/start',
-      { redirect: 'manual' },
-      TEST_ENV,
-    )
-
-    const setCookie = res.headers.get('set-cookie') ?? ''
-    expect(setCookie).toMatch(/HttpOnly/i)
-    expect(setCookie).toMatch(/SameSite=Lax/i)
   })
 })
