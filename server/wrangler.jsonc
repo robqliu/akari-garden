@@ -7,5 +7,15 @@
   "compatibility_date": "2026-05-10",
   "observability": {
     "enabled": true
-  }
+  },
+  // The `binding` name matches the USERS_KV field on Bindings in
+  // src/lib/env.ts. Run `wrangler kv:namespace create USERS_KV` to
+  // mint an id and paste it below. Local dev ignores this and uses
+  // the in-memory polyfill in dev-server.ts instead.
+  "kv_namespaces": [
+    {
+      "binding": "USERS_KV",
+      "id": "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
+    }
+  ]
 }

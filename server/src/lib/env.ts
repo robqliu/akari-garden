@@ -1,19 +1,17 @@
+import type { KVNamespace } from '@cloudflare/workers-types'
+
 // Values passed to Hono handlers via `c.env`. In production the
-// Cloudflare Workers runtime injects them (secrets are configured
-// with `wrangler secret put`). In dev, src/index.ts populates them
-// from process.env — see server/.env.example.
+// Workers runtime injects them. In dev, dev-server.ts fabricates
+// them from process.env — see server/.env.example.
 export type Bindings = {
-  // OAuth client id from the Google Cloud Console.
   GOOGLE_CLIENT_ID: string
-
-  // HMAC key used to sign the OAuth state token. Any long random
-  // string; rotating invalidates outstanding /google/start redirects.
+  GOOGLE_CLIENT_SECRET: string
   SESSION_SIGNING_KEY: string
-
-  // Public origin of this API. Used to build the redirect_uri Google
-  // sends the user back to. Must exactly match one of the authorized
-  // redirect URIs configured on the OAuth client in Google Cloud.
   PUBLIC_API_URL: string
+
+  // Stores per-user OAuth records. Configured in wrangler.jsonc; in
+  // dev, dev-server.ts supplies an in-memory polyfill.
+  USERS_KV: KVNamespace
 }
 
 export type AppEnv = { Bindings: Bindings }

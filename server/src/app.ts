@@ -4,11 +4,11 @@ import { cors } from 'hono/cors'
 import type { AppEnv } from './lib/env.js'
 import { buildAuthRouter } from './routes/auth.js'
 
-export function buildApp(): Hono<AppEnv> {
+export function buildApp(fetchImpl?: typeof fetch): Hono<AppEnv> {
   const app = new Hono<AppEnv>()
   app.use('*', cors())
   app.get('/health', (c) => c.json({ status: 'ok' }))
-  app.route('/api/auth', buildAuthRouter())
+  app.route('/api/auth', buildAuthRouter(fetchImpl))
   return app
 }
 
