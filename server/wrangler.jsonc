@@ -15,5 +15,12 @@
       "binding": "USERS_KV",
       "id": "663c0f22835c41359ab74d546632b234"
     }
-  ]
+  ],
+  // Non-sensitive config. Actual secrets (GOOGLE_CLIENT_SECRET,
+  // SESSION_SIGNING_KEY) are set via `wrangler secret put`.
+  "vars": {
+    "GOOGLE_CLIENT_ID": "737249350314-0qha9ouuj39vcnkkfpd05e2n9uubq7mu.apps.googleusercontent.com",
+    "PUBLIC_API_URL": "https://akari-garden-api.robqliu.workers.dev",
+    "PUBLIC_WEB_URL": "https://akari-garden.pages.dev/"
+  }
 }

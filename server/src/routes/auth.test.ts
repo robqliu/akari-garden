@@ -26,6 +26,7 @@ function buildTestEnv(): Bindings {
     GOOGLE_CLIENT_SECRET: 'test-client-secret',
     SESSION_SIGNING_KEY: 'test-signing-key',
     PUBLIC_API_URL: 'http://localhost:3000',
+    PUBLIC_WEB_URL: 'http://localhost:5173',
     USERS_KV: createMemoryKV(),
   }
 }

@@ -6,7 +6,10 @@ import { buildAuthRouter } from './routes/auth.js'
 
 export function buildApp(fetchImpl?: typeof fetch): Hono<AppEnv> {
   const app = new Hono<AppEnv>()
-  app.use('*', cors())
+  app.use('*', cors({
+    origin: (_, c) => c.env.PUBLIC_WEB_URL,
+    credentials: true,
+  }))
   app.get('/health', (c) => c.json({ status: 'ok' }))
   app.route('/api/auth', buildAuthRouter(fetchImpl))
   return app
