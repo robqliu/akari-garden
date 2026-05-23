@@ -76,12 +76,13 @@ describe('OAuth flow: /start -> /callback', () => {
       { redirect: 'manual' },
       env,
     )
-    const location = new URL(startRes.headers.get('location') ?? '')
-    const state = location.searchParams.get('state')!
+    expect(startRes.headers.get('location')).toBeTruthy()
+    const location = new URL(startRes.headers.get('location')!)
+    const csrfGuard = location.searchParams.get('state')!
     const csrfCookie = extractCookie(startRes.headers.get('set-cookie'), CSRF_COOKIE)!
 
     const cbRes = await app.request(
-      `/api/auth/google/callback?code=test-code&state=${state}`,
+      `/api/auth/google/callback?code=test-code&state=${csrfGuard}`,
       { headers: { cookie: `${CSRF_COOKIE}=${csrfCookie}` }, redirect: 'manual' },
       env,
     )
@@ -116,11 +117,12 @@ describe('OAuth flow: /start -> /callback', () => {
       { redirect: 'manual' },
       env,
     )
-    const state = new URL(startRes.headers.get('location') ?? '').searchParams.get('state')!
+    expect(startRes.headers.get('location')).toBeTruthy()
+    const csrfGuard = new URL(startRes.headers.get('location')!).searchParams.get('state')!
     const csrfCookie = extractCookie(startRes.headers.get('set-cookie'), CSRF_COOKIE)!
 
     const res = await app.request(
-      `/api/auth/google/callback?code=test&state=${state}`,
+      `/api/auth/google/callback?code=test&state=${csrfGuard}`,
       { headers: { cookie: `${CSRF_COOKIE}=${csrfCookie}` } },
       env,
     )

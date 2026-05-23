@@ -35,7 +35,11 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
 
   auth.get('/google/start', async (c) => {
     const csrfGuard = await mintCsrfGuard(c.env.SESSION_SIGNING_KEY)
-    setSecureCookie(c, CSRF_GUARD_COOKIE, csrfGuard, CSRF_GUARD_TTL_SECONDS)
+
+    setCookie(c, CSRF_GUARD_COOKIE, csrfGuard, {
+      ...secureCookieOptions(c),
+      maxAge: CSRF_GUARD_TTL_SECONDS,
+    })
 
     const url = buildGoogleAuthorizeUrl(c.env, csrfGuard)
     return c.redirect(url)
@@ -58,7 +62,11 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     if (!googleSub) return c.json({ error: 'invalid_id_token' }, 502)
 
     const sessionId = await createSession(c.env, googleSub, tokens.refresh_token)
-    await setSignedSessionCookie(c, sessionId)
+
+    await setSignedCookie(c, SESSION_COOKIE, sessionId, c.env.SESSION_SIGNING_KEY, {
+      ...secureCookieOptions(c),
+      maxAge: SESSION_TTL_SECONDS,
+    })
 
     return c.redirect('/')
   })
@@ -185,13 +193,3 @@ function secureCookieOptions(c: Context<AppEnv>): {
   }
 }
 
-function setSecureCookie(c: Context<AppEnv>, name: string, value: string, maxAge: number): void {
-  setCookie(c, name, value, { ...secureCookieOptions(c), maxAge })
-}
-
-async function setSignedSessionCookie(c: Context<AppEnv>, sessionId: string): Promise<void> {
-  await setSignedCookie(c, SESSION_COOKIE, sessionId, c.env.SESSION_SIGNING_KEY, {
-    ...secureCookieOptions(c),
-    maxAge: SESSION_TTL_SECONDS,
-  })
-}
