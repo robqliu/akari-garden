@@ -1,19 +1,13 @@
 import { useEffect, useState } from 'react'
+import { API_URL } from './config'
 import GoogleAccount from './GoogleAccount'
 import Weather from './Weather'
-
-// In production, set VITE_API_URL at build time (e.g. via the GitHub
-// Actions repo variable) to the deployed Worker's origin, e.g.
-// https://akari-garden-api.<account-subdomain>.workers.dev
-// In dev, leave it unset so requests stay same-origin and hit the
-// Vite proxy configured in vite.config.ts.
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 function App() {
   const [health, setHealth] = useState<string>('loading...')
 
   useEffect(() => {
-    fetch(`${API_BASE}/health`)
+    fetch(`${API_URL}/health`)
       .then((res) => res.json())
       .then((data) => setHealth(data.status))
       .catch(() => setHealth('unreachable'))
