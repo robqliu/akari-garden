@@ -69,7 +69,7 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
       maxAge: SESSION_TTL_SECONDS,
     })
 
-    return c.redirect('/')
+    return c.redirect(c.env.PUBLIC_WEB_URL)
   })
 
   auth.get('/me', async (c) => {
