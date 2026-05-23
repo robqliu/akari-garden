@@ -1,7 +1,5 @@
 # Server setup
 
-Steps to get the backend running locally and in production.
-
 ## Local dev
 
 1. **Install dependencies** (from the repo root):
@@ -36,51 +34,3 @@ Steps to get the backend running locally and in production.
    ```
 
    The server runs at `http://localhost:3000`.
-
-## Production (Cloudflare Workers)
-
-1. **Install the Cloudflare CLI:**
-
-   ```
-   npm install -g wrangler
-   wrangler login
-   ```
-
-2. **Create the KV namespace:**
-
-   ```
-   wrangler kv namespace create akari-garden-users
-   ```
-
-   The name can be anything — it's just a label in your Cloudflare
-   dashboard. KV namespaces are account-level (shared across all your
-   Workers), so pick something that makes it obvious which app it
-   belongs to.
-
-   The command prints an `id` value. Paste it into
-   `server/wrangler.jsonc` under the `kv_namespaces` entry, replacing
-   `REPLACE_WITH_REAL_KV_NAMESPACE_ID`. Commit and push the change.
-
-3. **Set Worker secrets:**
-
-   ```
-   wrangler secret put GOOGLE_CLIENT_ID
-   wrangler secret put GOOGLE_CLIENT_SECRET
-   wrangler secret put SESSION_SIGNING_KEY
-   wrangler secret put PUBLIC_API_URL
-   ```
-
-   Each command prompts you to paste the value. Use the same values
-   from your `server/.env` file, except `PUBLIC_API_URL` should be the
-   deployed Worker's origin, e.g.
-   `https://akari-garden-api.<account>.workers.dev`.
-
-3. **Add the production redirect URI** to the Google OAuth client from the local dev setup:
-
-   ```
-   https://akari-garden-api.<account>.workers.dev/api/auth/google/callback
-   ```
-
-4. **Deploy:**
-
-   Deploys happen automatically via the `deploy_api` job in `.github/workflows/cloudflare.yml` on push to `main`.
