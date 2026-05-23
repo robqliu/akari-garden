@@ -39,32 +39,30 @@ Steps to get the backend running locally and in production.
 
 ## Production (Cloudflare Workers)
 
-1. **Create the KV namespace:**
-
-   Run from anywhere — this is an account-level operation, it doesn't
-   read any local config:
+1. **Install the Cloudflare CLI:**
 
    ```
-   pnpm dlx wrangler@latest kv:namespace create USERS_KV
+   npm install -g wrangler
+   wrangler login
    ```
 
-   (`pnpm dlx` downloads and runs wrangler without a global install.
-   You can also use `npx wrangler@latest` or a globally installed
-   `wrangler` — they're equivalent.)
+2. **Create the KV namespace:**
 
-   It will print an `id` value. Paste that into `server/wrangler.jsonc`
+   ```
+   wrangler kv:namespace create USERS_KV
+   ```
+
+   This prints an `id` value. Paste it into `server/wrangler.jsonc`
    under the `kv_namespaces` entry, replacing
    `REPLACE_WITH_REAL_KV_NAMESPACE_ID`. Commit and push the change.
 
-2. **Set Worker secrets:**
-
-   Also account-level, run from anywhere:
+3. **Set Worker secrets:**
 
    ```
-   pnpm dlx wrangler@latest secret put GOOGLE_CLIENT_ID
-   pnpm dlx wrangler@latest secret put GOOGLE_CLIENT_SECRET
-   pnpm dlx wrangler@latest secret put SESSION_SIGNING_KEY
-   pnpm dlx wrangler@latest secret put PUBLIC_API_URL
+   wrangler secret put GOOGLE_CLIENT_ID
+   wrangler secret put GOOGLE_CLIENT_SECRET
+   wrangler secret put SESSION_SIGNING_KEY
+   wrangler secret put PUBLIC_API_URL
    ```
 
    Each command prompts you to paste the value. Use the same values
