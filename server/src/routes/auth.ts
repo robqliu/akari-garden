@@ -1,65 +1,195 @@
+import type { Context } from 'hono'
 import { Hono } from 'hono'
-import { setCookie } from 'hono/cookie'
-import { sign as signJwt } from 'hono/utils/jwt/jwt'
+import {
+  deleteCookie,
+  getCookie,
+  setCookie,
+  setSignedCookie,
+} from 'hono/cookie'
+import { sign as signJwt, verify as verifyJwt } from 'hono/utils/jwt/jwt'
+import { JwtTokenExpired } from 'hono/utils/jwt/types'
 
-import type { AppEnv } from '../lib/env.js'
+import type { AppEnv, Bindings } from '../lib/env.js'
 
-// `openid` is the minimum scope needed for the OAuth flow to round-
-// trip; Google rejects authorize requests with no scope. Additional
-// scopes (userinfo.email, calendar.app.created) get added in the
-// commits that actually consume the granted permissions.
 const SCOPES = 'openid'
 
-// Short-lived cookie holding the state token. The callback verifies
-// the `state` query param Google echoes back matches this cookie
-// (defends against callback CSRF — see RFC 6749 §10.12).
-const STATE_COOKIE = 'ag_oauth_state'
-const STATE_TTL_SECONDS = 10 * 60
+// Cookie that survives the redirect to Google and back, carrying the
+// signed state token so the callback can verify the redirect is legit.
+// See RFC 6749 §10.12 for the attack this prevents.
+const CSRF_GUARD_COOKIE = 'ag_csrf_guard'
+const CSRF_GUARD_TTL_SECONDS = 10 * 60
 
-export function buildAuthRouter(): Hono<AppEnv> {
+const SESSION_COOKIE = 'ag_session'
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
+
+// Google's stable user identifier, from the `sub` claim in the ID
+// token (https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload).
+type UserRecord = {
+  googleSub: string
+  refreshToken: string
+  createdAt: string
+}
+
+export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
   const auth = new Hono<AppEnv>()
 
   auth.get('/google/start', async (c) => {
-    // The OAuth `state` value has to be unguessable and not reusable
-    // by an attacker. We use a HS256 JWT with a 10-minute `exp` so
-    // the callback can both verify it (signature check) and reject
-    // stale values (exp check). No payload beyond exp — the value is
-    // opaque to anything except sign/verify.
-    const now = Math.floor(Date.now() / 1000)
-    const state = await signJwt(
-      { exp: now + STATE_TTL_SECONDS },
-      c.env.SESSION_SIGNING_KEY,
-      'HS256',
-    )
+    const csrfGuard = await mintCsrfGuard(c.env.SESSION_SIGNING_KEY)
 
-    setCookie(c, STATE_COOKIE, state, {
-      httpOnly: true,
-      // Browsers reject Secure cookies on http origins, so we drop it
-      // for local dev. Anything that isn't localhost gets Secure.
-      secure: new URL(c.req.url).hostname !== 'localhost',
-      sameSite: 'Lax',
-      path: '/',
-      maxAge: STATE_TTL_SECONDS,
+    setCookie(c, CSRF_GUARD_COOKIE, csrfGuard, {
+      ...secureCookieOptions(c),
+      maxAge: CSRF_GUARD_TTL_SECONDS,
     })
 
-    const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
-    url.searchParams.set('client_id', c.env.GOOGLE_CLIENT_ID)
-    // The /api/auth/google/callback route lands in the next commit.
-    // Until then, completing the consent screen 404s — pointing here
-    // now keeps the OAuth client's authorized redirect URI list stable
-    // across commits.
-    url.searchParams.set('redirect_uri', `${c.env.PUBLIC_API_URL}/api/auth/google/callback`)
-    url.searchParams.set('response_type', 'code')
-    url.searchParams.set('scope', SCOPES)
-    // offline + prompt=consent together are what causes Google to
-    // return a refresh_token on the callback. See "Refresh tokens" at
-    // https://developers.google.com/identity/protocols/oauth2/web-server.
-    url.searchParams.set('access_type', 'offline')
-    url.searchParams.set('prompt', 'consent')
-    url.searchParams.set('state', state)
+    const url = buildGoogleAuthorizeUrl(c.env, csrfGuard)
+    return c.redirect(url)
+  })
 
-    return c.redirect(url.toString())
+  auth.get('/google/callback', async (c) => {
+    const code = c.req.query('code')
+    const stateParam = c.req.query('state')
+    const guardCookie = getCookie(c, CSRF_GUARD_COOKIE)
+    deleteCookie(c, CSRF_GUARD_COOKIE, { path: '/' })
+
+    const guardError = await verifyCsrfGuard(stateParam, guardCookie, c.env.SESSION_SIGNING_KEY)
+    if (guardError) return c.json(guardError.body, guardError.status)
+    if (!code) return c.json({ error: 'missing_code' }, 400)
+
+    const tokens = await exchangeCodeForTokens(code, c.env, fetchImpl)
+    if (!tokens) return c.json({ error: 'token_exchange_failed' }, 502)
+
+    const googleSub = extractGoogleSub(tokens.id_token)
+    if (!googleSub) return c.json({ error: 'invalid_id_token' }, 502)
+
+    const sessionId = await createSession(c.env, googleSub, tokens.refresh_token)
+
+    await setSignedCookie(c, SESSION_COOKIE, sessionId, c.env.SESSION_SIGNING_KEY, {
+      ...secureCookieOptions(c),
+      maxAge: SESSION_TTL_SECONDS,
+    })
+
+    return c.redirect('/')
   })
 
   return auth
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function buildGoogleAuthorizeUrl(env: Bindings, state: string): string {
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+  url.searchParams.set('client_id', env.GOOGLE_CLIENT_ID)
+  url.searchParams.set('redirect_uri', `${env.PUBLIC_API_URL}/api/auth/google/callback`)
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('scope', SCOPES)
+  // access_type=offline + prompt=consent together cause Google to
+  // return a refresh_token. See "Refresh tokens" at
+  // https://developers.google.com/identity/protocols/oauth2/web-server.
+  url.searchParams.set('access_type', 'offline')
+  url.searchParams.set('prompt', 'consent')
+  url.searchParams.set('state', state)
+  return url.toString()
+}
+
+// The CSRF guard is a HS256 JWT with a short expiry. We sign it with
+// SESSION_SIGNING_KEY so the callback can verify both authenticity
+// (we minted it) and freshness (not expired).
+async function mintCsrfGuard(signingKey: string): Promise<string> {
+  const now = Math.floor(Date.now() / 1000)
+  return signJwt({ exp: now + CSRF_GUARD_TTL_SECONDS }, signingKey, 'HS256')
+}
+
+type ErrorResponse = { body: { error: string; reason?: string }; status: 400 }
+
+async function verifyCsrfGuard(
+  stateParam: string | undefined,
+  guardCookie: string | undefined,
+  signingKey: string,
+): Promise<ErrorResponse | null> {
+  if (!stateParam || !guardCookie) {
+    return { body: { error: 'missing_params' }, status: 400 }
+  }
+  if (stateParam !== guardCookie) {
+    console.error('CSRF guard mismatch: state param does not match cookie')
+    return { body: { error: 'state_mismatch' }, status: 400 }
+  }
+  try {
+    await verifyJwt(stateParam, signingKey, 'HS256')
+  } catch (err) {
+    const reason = err instanceof JwtTokenExpired ? 'expired' : 'invalid'
+    return { body: { error: 'invalid_state', reason }, status: 400 }
+  }
+  return null
+}
+
+type TokenResponse = { access_token: string; refresh_token: string; id_token: string }
+
+async function exchangeCodeForTokens(
+  code: string,
+  env: Bindings,
+  fetchImpl: typeof fetch,
+): Promise<TokenResponse | null> {
+  const res = await fetchImpl('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: `${env.PUBLIC_API_URL}/api/auth/google/callback`,
+      grant_type: 'authorization_code',
+    }),
+  })
+  if (!res.ok) {
+    console.error(`Google /token failed: ${res.status}`)
+    return null
+  }
+  return (await res.json()) as TokenResponse
+}
+
+// Reads the `sub` claim from a Google ID token without verifying the
+// signature. Safe here because this token came directly from Google
+// over TLS in a server-to-server response — the transport is the
+// trust boundary. If we ever accept ID tokens from a client, switch
+// to signature verification using Google's JWKS.
+function extractGoogleSub(idToken: string): string | null {
+  try {
+    const payload = JSON.parse(atob(idToken.split('.')[1])) as { sub?: string }
+    return payload.sub ?? null
+  } catch {
+    return null
+  }
+}
+
+async function createSession(
+  env: Bindings,
+  googleSub: string,
+  refreshToken: string,
+): Promise<string> {
+  const sessionId = crypto.randomUUID()
+  const record: UserRecord = {
+    googleSub,
+    refreshToken,
+    createdAt: new Date().toISOString(),
+  }
+  await env.USERS_KV.put(`session:${sessionId}`, JSON.stringify(record))
+  return sessionId
+}
+
+// Cookie security flags — do not remove without understanding the
+// attack each one prevents:
+//   httpOnly  - JS can't read the cookie, so XSS can't steal it
+//   secure    - only sent over HTTPS, prevents leak on plain HTTP
+//              (dropped on localhost so dev works over http)
+//   sameSite  - browser won't attach on cross-site POSTs, blocking CSRF
+function secureCookieOptions(c: Context<AppEnv>): {
+  httpOnly: boolean; secure: boolean; sameSite: 'Lax'; path: string
+} {
+  return {
+    httpOnly: true,
+    secure: new URL(c.req.url).hostname !== 'localhost',
+    sameSite: 'Lax',
+    path: '/',
+  }
+}
+

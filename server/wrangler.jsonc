@@ -7,5 +7,13 @@
   "compatibility_date": "2026-05-10",
   "observability": {
     "enabled": true
-  }
+  },
+  // The `binding` name matches the USERS_KV field on Bindings in
+  // src/lib/env.ts. Local dev uses an in-memory polyfill instead.
+  "kv_namespaces": [
+    {
+      "binding": "USERS_KV",
+      "id": "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
+    }
+  ]
 }

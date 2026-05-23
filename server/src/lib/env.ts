@@ -1,19 +1,28 @@
-// Values passed to Hono handlers via `c.env`. In production the
-// Cloudflare Workers runtime injects them (secrets are configured
-// with `wrangler secret put`). In dev, src/index.ts populates them
-// from process.env — see server/.env.example.
-export type Bindings = {
-  // OAuth client id from the Google Cloud Console.
-  GOOGLE_CLIENT_ID: string
+import type { KVNamespace } from '@cloudflare/workers-types'
 
-  // HMAC key used to sign the OAuth state token. Any long random
-  // string; rotating invalidates outstanding /google/start redirects.
+// Values passed to Hono handlers via `c.env`. In production the
+// Workers runtime injects them. In dev, dev-server.ts fabricates
+// them from process.env — see server/.env.example.
+export type Bindings = {
+  // OAuth client credentials from the Google Cloud Console.
+  GOOGLE_CLIENT_ID: string
+  GOOGLE_CLIENT_SECRET: string
+
+  // HMAC key for signing session cookies and OAuth state JWTs. Any
+  // long random string; rotating it invalidates all outstanding
+  // sessions and in-flight OAuth redirects.
   SESSION_SIGNING_KEY: string
 
-  // Public origin of this API. Used to build the redirect_uri Google
-  // sends the user back to. Must exactly match one of the authorized
-  // redirect URIs configured on the OAuth client in Google Cloud.
+  // Public origin of this API, e.g. http://localhost:3000 in dev or
+  // https://akari-garden-api.<account>.workers.dev in prod. Used to
+  // build the OAuth redirect_uri, which Google requires to exactly
+  // match a URI you registered on the OAuth client:
+  // https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred
   PUBLIC_API_URL: string
+
+  // Stores per-user OAuth records (refresh token, Google sub). In
+  // dev, an in-memory polyfill.
+  USERS_KV: KVNamespace
 }
 
 export type AppEnv = { Bindings: Bindings }
