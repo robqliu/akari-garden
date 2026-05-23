@@ -7,11 +7,7 @@ import { buildAuthRouter } from './routes/auth.js'
 export function buildApp(fetchImpl?: typeof fetch): Hono<AppEnv> {
   const app = new Hono<AppEnv>()
   app.use('*', cors({
-    // In dev, Vite proxies /api so requests are same-origin and CORS
-    // doesn't apply. In production, the Pages frontend and Workers API
-    // are on different origins, so we need to allow the frontend's
-    // origin with credentials (for the session cookie).
-    origin: (origin) => origin,
+    origin: (_, c) => c.env.PUBLIC_WEB_URL,
     credentials: true,
   }))
   app.get('/health', (c) => c.json({ status: 'ok' }))

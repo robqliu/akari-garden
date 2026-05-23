@@ -20,6 +20,12 @@ export type Bindings = {
   // https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred
   PUBLIC_API_URL: string
 
+  // Origin of the frontend, e.g. http://localhost:5173 in dev or
+  // https://akari-garden.pages.dev in prod. Used as the CORS
+  // Access-Control-Allow-Origin value so the browser allows
+  // credentialed requests (session cookie) from the frontend.
+  PUBLIC_WEB_URL: string
+
   // Stores per-user OAuth records (refresh token, Google sub). In
   // dev, an in-memory polyfill.
   USERS_KV: KVNamespace

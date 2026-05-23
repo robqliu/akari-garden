@@ -25,12 +25,12 @@ const devEnv: Bindings = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
   SESSION_SIGNING_KEY: process.env.SESSION_SIGNING_KEY ?? 'dev-only-signing-key',
   PUBLIC_API_URL: process.env.PUBLIC_API_URL ?? `http://localhost:${port}`,
+  PUBLIC_WEB_URL: process.env.PUBLIC_WEB_URL ?? 'http://localhost:5173',
   USERS_KV: createMemoryKV(),
 }
 
-const missing = (['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const).filter(
-  (k) => !devEnv[k],
-)
+const required = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'PUBLIC_WEB_URL'] as const
+const missing = required.filter((k) => !devEnv[k])
 if (missing.length > 0) {
   console.warn(
     `[dev] Missing env vars: ${missing.join(', ')}. Google sign-in will fail. Set them in server/.env.`,
