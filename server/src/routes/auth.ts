@@ -74,18 +74,23 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
 
   auth.get('/me', async (c) => {
     const user = await getSessionUser(c)
-    if (!user) return c.json({ hasGoogleAccess: false })
-    return c.json({ hasGoogleAccess: true })
+    return c.json({ hasGoogleAccess: !!user })
   })
 
+  // Idempotent: returns { ok: true } even without a session so the
+  // frontend doesn't need to track signed-in state before calling.
   auth.post('/logout', async (c) => {
     const sessionId = await getSessionId(c)
     if (sessionId) {
       const user = await getSessionUser(c)
       if (user) {
-        await revokeRefreshToken(user.refreshToken, fetchImpl)
-        await c.env.USERS_KV.delete(`session:${sessionId}`)
+        try {
+          await revokeRefreshToken(user.refreshToken, fetchImpl)
+        } catch (err) {
+          console.error('Google /revoke failed, clearing local session anyway:', err)
+        }
       }
+      await c.env.USERS_KV.delete(`session:${sessionId}`)
       deleteCookie(c, SESSION_COOKIE, { path: '/' })
     }
     return c.json({ ok: true })
@@ -213,16 +218,13 @@ async function getSessionUser(c: Context<AppEnv>): Promise<UserRecord | null> {
   }
 }
 
-// Best-effort: if Google's /revoke fails (token already dead, network
-// blip) we still want to clear our own state.
 async function revokeRefreshToken(refreshToken: string, fetchImpl: typeof fetch): Promise<void> {
-  try {
-    await fetchImpl(
-      `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`,
-      { method: 'POST' },
-    )
-  } catch {
-    // intentionally swallowed
+  const res = await fetchImpl(
+    `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`,
+    { method: 'POST' },
+  )
+  if (!res.ok) {
+    throw new Error(`Google /revoke failed: ${res.status}`)
   }
 }
 
@@ -242,4 +244,3 @@ function secureCookieOptions(c: Context<AppEnv>): {
     path: '/',
   }
 }
-
