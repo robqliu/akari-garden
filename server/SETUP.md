@@ -41,22 +41,36 @@ Steps to get the backend running locally and in production.
 
 1. **Create the KV namespace:**
 
+   Run from anywhere — this is an account-level operation, it doesn't
+   read any local config:
+
    ```
-   wrangler kv:namespace create USERS_KV
+   pnpm dlx wrangler@latest kv:namespace create USERS_KV
    ```
 
-   Paste the returned `id` into `server/wrangler.jsonc` under the `kv_namespaces` entry.
+   (`pnpm dlx` downloads and runs wrangler without a global install.
+   You can also use `npx wrangler@latest` or a globally installed
+   `wrangler` — they're equivalent.)
+
+   It will print an `id` value. Paste that into `server/wrangler.jsonc`
+   under the `kv_namespaces` entry, replacing
+   `REPLACE_WITH_REAL_KV_NAMESPACE_ID`. Commit and push the change.
 
 2. **Set Worker secrets:**
 
+   Also account-level, run from anywhere:
+
    ```
-   wrangler secret put GOOGLE_CLIENT_ID
-   wrangler secret put GOOGLE_CLIENT_SECRET
-   wrangler secret put SESSION_SIGNING_KEY
-   wrangler secret put PUBLIC_API_URL
+   pnpm dlx wrangler@latest secret put GOOGLE_CLIENT_ID
+   pnpm dlx wrangler@latest secret put GOOGLE_CLIENT_SECRET
+   pnpm dlx wrangler@latest secret put SESSION_SIGNING_KEY
+   pnpm dlx wrangler@latest secret put PUBLIC_API_URL
    ```
 
-   `PUBLIC_API_URL` is the deployed Worker's origin, e.g. `https://akari-garden-api.<account>.workers.dev`.
+   Each command prompts you to paste the value. Use the same values
+   from your `server/.env` file, except `PUBLIC_API_URL` should be the
+   deployed Worker's origin, e.g.
+   `https://akari-garden-api.<account>.workers.dev`.
 
 3. **Add the production redirect URI** to the Google OAuth client from the local dev setup:
 
