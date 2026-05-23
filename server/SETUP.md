@@ -49,11 +49,16 @@ Steps to get the backend running locally and in production.
 2. **Create the KV namespace:**
 
    ```
-   wrangler kv namespace create USERS_KV
+   wrangler kv namespace create akari-garden-users
    ```
 
-   This prints an `id` value. Paste it into `server/wrangler.jsonc`
-   under the `kv_namespaces` entry, replacing
+   The name can be anything — it's just a label in your Cloudflare
+   dashboard. KV namespaces are account-level (shared across all your
+   Workers), so pick something that makes it obvious which app it
+   belongs to.
+
+   The command prints an `id` value. Paste it into
+   `server/wrangler.jsonc` under the `kv_namespaces` entry, replacing
    `REPLACE_WITH_REAL_KV_NAMESPACE_ID`. Commit and push the change.
 
 3. **Set Worker secrets:**
