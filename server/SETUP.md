@@ -49,7 +49,7 @@ Steps to get the backend running locally and in production.
 2. **Create the KV namespace:**
 
    ```
-   wrangler kv:namespace create USERS_KV
+   wrangler kv namespace create USERS_KV
    ```
 
    This prints an `id` value. Paste it into `server/wrangler.jsonc`
