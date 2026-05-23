@@ -1,69 +1,41 @@
 # Server setup
 
-Steps to get the backend running locally and in production.
-
 ## Local dev
 
-1. **Install dependencies** (from the repo root):
+Each developer creates their own Google OAuth client so there's no
+shared secret to distribute and no interference between devs' testing
+accounts.
 
-   ```
-   pnpm install
-   ```
-
-2. **Create a Google OAuth client:**
+1. **Create a Google Cloud OAuth client:**
 
    - Go to [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials).
-   - Create an OAuth client ID, type **Web application**.
+     Create a project first if you don't have one.
+   - Click **Create Credentials → OAuth client ID**, type **Web application**.
    - Add `http://localhost:3000/api/auth/google/callback` as an **Authorized redirect URI**.
-   - In the **OAuth consent screen** settings, set the app to **Testing** mode and add your Google account as a test user.
+   - Go to the **OAuth consent screen** settings, set the publishing
+     status to **Testing**, and add your own Google account as a test user.
+   - Copy the **Client ID** and **Client secret** from the credentials page.
 
-3. **Set environment variables:**
+2. **Set environment variables:**
 
    ```
    cp server/.env.example server/.env
    ```
 
-   Fill in `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from step 2. Generate a signing key:
+   Paste the Client ID and Client secret from step 1 into `GOOGLE_CLIENT_ID`
+   and `GOOGLE_CLIENT_SECRET`. Generate a signing key:
 
    ```
    openssl rand -hex 32
    ```
 
-4. **Start the dev server:**
+   Paste it into `SESSION_SIGNING_KEY`.
+
+3. **Install dependencies and start:**
 
    ```
+   pnpm install
    pnpm --filter @akari-garden/server dev
    ```
 
    The server runs at `http://localhost:3000`.
-
-## Production (Cloudflare Workers)
-
-1. **Create the KV namespace:**
-
-   ```
-   wrangler kv:namespace create USERS_KV
-   ```
-
-   Paste the returned `id` into `server/wrangler.jsonc` under the `kv_namespaces` entry.
-
-2. **Set Worker secrets:**
-
-   ```
-   wrangler secret put GOOGLE_CLIENT_ID
-   wrangler secret put GOOGLE_CLIENT_SECRET
-   wrangler secret put SESSION_SIGNING_KEY
-   wrangler secret put PUBLIC_API_URL
-   ```
-
-   `PUBLIC_API_URL` is the deployed Worker's origin, e.g. `https://akari-garden-api.<account>.workers.dev`.
-
-3. **Add the production redirect URI** to the Google OAuth client from the local dev setup:
-
-   ```
-   https://akari-garden-api.<account>.workers.dev/api/auth/google/callback
-   ```
-
-4. **Deploy:**
-
-   Deploys happen automatically via the `deploy_api` job in `.github/workflows/cloudflare.yml` on push to `main`.

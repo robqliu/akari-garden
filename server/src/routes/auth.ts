@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import {
   deleteCookie,
   getCookie,
+  getSignedCookie,
   setCookie,
   setSignedCookie,
 } from 'hono/cookie'
@@ -69,6 +70,30 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     })
 
     return c.redirect('/')
+  })
+
+  auth.get('/me', async (c) => {
+    const user = await getSessionUser(c)
+    return c.json({ hasGoogleAccess: !!user })
+  })
+
+  // Idempotent: returns { ok: true } even without a session so the
+  // frontend doesn't need to track signed-in state before calling.
+  auth.post('/logout', async (c) => {
+    const sessionId = await getSessionId(c)
+    if (sessionId) {
+      const user = await getSessionUser(c)
+      if (user) {
+        try {
+          await revokeRefreshToken(user.refreshToken, fetchImpl)
+        } catch (err) {
+          console.error('Google /revoke failed, clearing local session anyway:', err)
+        }
+      }
+      await c.env.USERS_KV.delete(`session:${sessionId}`)
+      deleteCookie(c, SESSION_COOKIE, { path: '/' })
+    }
+    return c.json({ ok: true })
   })
 
   return auth
@@ -176,6 +201,33 @@ async function createSession(
   return sessionId
 }
 
+async function getSessionId(c: Context<AppEnv>): Promise<string | null> {
+  const value = await getSignedCookie(c, c.env.SESSION_SIGNING_KEY, SESSION_COOKIE)
+  return typeof value === 'string' ? value : null
+}
+
+async function getSessionUser(c: Context<AppEnv>): Promise<UserRecord | null> {
+  const sessionId = await getSessionId(c)
+  if (!sessionId) return null
+  const raw = await c.env.USERS_KV.get(`session:${sessionId}`)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as UserRecord
+  } catch {
+    return null
+  }
+}
+
+async function revokeRefreshToken(refreshToken: string, fetchImpl: typeof fetch): Promise<void> {
+  const res = await fetchImpl(
+    `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`,
+    { method: 'POST' },
+  )
+  if (!res.ok) {
+    throw new Error(`Google /revoke failed: ${res.status}`)
+  }
+}
+
 // Cookie security flags — do not remove without understanding the
 // attack each one prevents:
 //   httpOnly  - JS can't read the cookie, so XSS can't steal it
@@ -192,4 +244,3 @@ function secureCookieOptions(c: Context<AppEnv>): {
     path: '/',
   }
 }
-
