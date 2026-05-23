@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import GoogleAccount from './GoogleAccount'
 import Weather from './Weather'
 
 // In production, set VITE_API_URL at build time (e.g. via the GitHub
@@ -25,6 +26,7 @@ function App() {
         Backend status: <strong>{health}</strong>
       </p>
       <Weather />
+      <GoogleAccount />
     </div>
   )
 }
