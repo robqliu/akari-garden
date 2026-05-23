@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import {
   deleteCookie,
   getCookie,
-  getSignedCookie,
   setCookie,
   setSignedCookie,
 } from 'hono/cookie'
@@ -11,6 +10,13 @@ import { sign as signJwt, verify as verifyJwt } from 'hono/utils/jwt/jwt'
 import { JwtTokenExpired } from 'hono/utils/jwt/types'
 
 import type { AppEnv, Bindings } from '../lib/env.js'
+import {
+  deleteSession,
+  getAuthenticatedUser,
+  getSessionId,
+  putSession,
+  putUser,
+} from '../lib/kv.js'
 
 const SCOPES = 'openid'
 
@@ -23,14 +29,6 @@ const CSRF_GUARD_TTL_SECONDS = 10 * 60
 const SESSION_COOKIE = 'ag_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 
-// Google's stable user identifier, from the `sub` claim in the ID
-// token (https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload).
-type UserRecord = {
-  googleSub: string
-  refreshToken: string
-  createdAt: string
-}
-
 export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
   const auth = new Hono<AppEnv>()
 
@@ -42,8 +40,7 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
       maxAge: CSRF_GUARD_TTL_SECONDS,
     })
 
-    const url = buildGoogleAuthorizeUrl(c.env, csrfGuard)
-    return c.redirect(url)
+    return c.redirect(buildGoogleAuthorizeUrl(c.env, csrfGuard))
   })
 
   auth.get('/google/callback', async (c) => {
@@ -62,7 +59,13 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     const googleSub = extractGoogleSub(tokens.id_token)
     if (!googleSub) return c.json({ error: 'invalid_id_token' }, 502)
 
-    const sessionId = await createSession(c.env, googleSub, tokens.refresh_token)
+    await putUser(c.env, googleSub, {
+      refreshToken: tokens.refresh_token,
+      createdAt: new Date().toISOString(),
+    })
+
+    const sessionId = crypto.randomUUID()
+    await putSession(c.env, sessionId, { googleSub })
 
     await setSignedCookie(c, SESSION_COOKIE, sessionId, c.env.SESSION_SIGNING_KEY, {
       ...secureCookieOptions(c),
@@ -73,16 +76,16 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
   })
 
   auth.get('/me', async (c) => {
-    const user = await getSessionUser(c)
+    const user = await getAuthenticatedUser(c)
     return c.json({ hasGoogleAccess: !!user })
   })
 
   // Idempotent: returns { ok: true } even without a session so the
-  // frontend doesn't need to track signed-in state before calling.
+  // FE doesn't need to track signed-in state before calling.
   auth.post('/logout', async (c) => {
     const sessionId = await getSessionId(c)
     if (sessionId) {
-      const user = await getSessionUser(c)
+      const user = await getAuthenticatedUser(c)
       if (user) {
         try {
           await revokeRefreshToken(user.refreshToken, fetchImpl)
@@ -90,7 +93,7 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
           console.error('Google /revoke failed, clearing local session anyway:', err)
         }
       }
-      await c.env.USERS_KV.delete(`session:${sessionId}`)
+      await deleteSession(c.env, sessionId)
       deleteCookie(c, SESSION_COOKIE, { path: '/' })
     }
     return c.json({ ok: true })
@@ -99,7 +102,7 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
   return auth
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
+// ── Google helpers ──────────────────────────────────────────────────
 
 function buildGoogleAuthorizeUrl(env: Bindings, state: string): string {
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
@@ -186,38 +189,6 @@ function extractGoogleSub(idToken: string): string | null {
   }
 }
 
-async function createSession(
-  env: Bindings,
-  googleSub: string,
-  refreshToken: string,
-): Promise<string> {
-  const sessionId = crypto.randomUUID()
-  const record: UserRecord = {
-    googleSub,
-    refreshToken,
-    createdAt: new Date().toISOString(),
-  }
-  await env.USERS_KV.put(`session:${sessionId}`, JSON.stringify(record))
-  return sessionId
-}
-
-async function getSessionId(c: Context<AppEnv>): Promise<string | null> {
-  const value = await getSignedCookie(c, c.env.SESSION_SIGNING_KEY, SESSION_COOKIE)
-  return typeof value === 'string' ? value : null
-}
-
-async function getSessionUser(c: Context<AppEnv>): Promise<UserRecord | null> {
-  const sessionId = await getSessionId(c)
-  if (!sessionId) return null
-  const raw = await c.env.USERS_KV.get(`session:${sessionId}`)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as UserRecord
-  } catch {
-    return null
-  }
-}
-
 async function revokeRefreshToken(refreshToken: string, fetchImpl: typeof fetch): Promise<void> {
   const res = await fetchImpl(
     `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`,
@@ -252,7 +223,6 @@ function secureCookieOptions(c: Context<AppEnv>): {
     httpOnly: true,
     secure: !isLocal,
     // SameSite=None requires Secure, which isn't set on localhost.
-    // Use Lax in dev (same-origin via Vite proxy, so it works).
     sameSite: isLocal ? 'Lax' : 'None',
     path: '/',
   }
