@@ -143,6 +143,13 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     }
     await c.env.USERS_KV.put(`session:${sessionId}`, JSON.stringify(record))
 
+    // Cookie security flags — do not remove without understanding the
+    // attack each one prevents:
+    //   httpOnly  - JS can't read the cookie, so XSS can't steal it.
+    //   secure    - only sent over HTTPS, prevents leak on plain HTTP.
+    //              (dropped on localhost so dev works over http.)
+    //   sameSite  - browser won't attach the cookie on cross-site
+    //              POSTs, blocking CSRF against our endpoints.
     await setSignedCookie(c, SESSION_COOKIE, sessionId, c.env.SESSION_SIGNING_KEY, {
       httpOnly: true,
       secure: new URL(c.req.url).hostname !== 'localhost',
