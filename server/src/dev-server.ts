@@ -4,11 +4,6 @@ import type { KVNamespace } from '@cloudflare/workers-types'
 import { app } from './app.js'
 import type { Bindings } from './lib/env.js'
 
-// This file is dev-only. See the comment at the top of the merged
-// version for the full explanation of why production doesn't use it.
-
-// Minimal in-memory KVNamespace for local dev. Only implements the
-// get/put/delete signatures we use; anything else throws.
 function createMemoryKV(): KVNamespace {
   const store = new Map<string, string>()
   const unsupported = (name: string) => () => {

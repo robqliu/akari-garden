@@ -4,7 +4,6 @@ import type { KVNamespace } from '@cloudflare/workers-types'
 import { buildApp } from '../app.js'
 import type { Bindings } from '../lib/env.js'
 
-// Minimal in-memory KV, same as dev-server.ts.
 function createMemoryKV(): KVNamespace {
   const store = new Map<string, string>()
   const unsupported = (name: string) => () => {
@@ -35,10 +34,15 @@ function fakeIdToken(sub: string): string {
   return `${header}.${payload}.`
 }
 
-// Routes the request to the right canned response based on URL prefix.
+function resolveUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.href
+  return input.url
+}
+
 function fakeFetch(routes: Record<string, (url: string, init?: RequestInit) => Response | Promise<Response>>): typeof fetch {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = resolveUrl(input)
     for (const [prefix, handler] of Object.entries(routes)) {
       if (url.startsWith(prefix)) return handler(url, init)
     }
@@ -52,6 +56,9 @@ function extractCookie(setCookie: string | null, name: string): string | null {
   return match ? match[1] : null
 }
 
+const CSRF_COOKIE = 'ag_csrf_guard'
+const SESSION_COOKIE = 'ag_session'
+
 describe('OAuth flow: /start -> /callback', () => {
   it('exchanges the code, stores the refresh token, and sets a session cookie', async () => {
     const env = buildTestEnv()
@@ -64,7 +71,6 @@ describe('OAuth flow: /start -> /callback', () => {
         }),
     }))
 
-    // Hit /start to get the state cookie
     const startRes = await app.request(
       '/api/auth/google/start',
       { redirect: 'manual' },
@@ -72,28 +78,27 @@ describe('OAuth flow: /start -> /callback', () => {
     )
     const location = new URL(startRes.headers.get('location') ?? '')
     const state = location.searchParams.get('state')!
-    const stateCookie = extractCookie(startRes.headers.get('set-cookie'), 'ag_oauth_state')!
+    const csrfCookie = extractCookie(startRes.headers.get('set-cookie'), CSRF_COOKIE)!
 
-    // Simulate Google redirecting back with the code + state
     const cbRes = await app.request(
       `/api/auth/google/callback?code=test-code&state=${state}`,
-      { headers: { cookie: `ag_oauth_state=${stateCookie}` }, redirect: 'manual' },
+      { headers: { cookie: `${CSRF_COOKIE}=${csrfCookie}` }, redirect: 'manual' },
       env,
     )
     expect(cbRes.status).toBe(302)
     expect(cbRes.headers.get('location')).toBe('/')
 
-    const sessionCookie = extractCookie(cbRes.headers.get('set-cookie'), 'ag_session')
+    const sessionCookie = extractCookie(cbRes.headers.get('set-cookie'), SESSION_COOKIE)
     expect(sessionCookie).toBeTruthy()
   })
 
-  it('rejects the callback when the state cookie does not match', async () => {
+  it('rejects the callback when the CSRF guard cookie does not match', async () => {
     const env = buildTestEnv()
     const app = buildApp(fakeFetch({}))
 
     const res = await app.request(
       '/api/auth/google/callback?code=x&state=tampered',
-      { headers: { cookie: 'ag_oauth_state=different' } },
+      { headers: { cookie: `${CSRF_COOKIE}=different` } },
       env,
     )
     expect(res.status).toBe(400)
@@ -112,11 +117,11 @@ describe('OAuth flow: /start -> /callback', () => {
       env,
     )
     const state = new URL(startRes.headers.get('location') ?? '').searchParams.get('state')!
-    const stateCookie = extractCookie(startRes.headers.get('set-cookie'), 'ag_oauth_state')!
+    const csrfCookie = extractCookie(startRes.headers.get('set-cookie'), CSRF_COOKIE)!
 
     const res = await app.request(
       `/api/auth/google/callback?code=test&state=${state}`,
-      { headers: { cookie: `ag_oauth_state=${stateCookie}` } },
+      { headers: { cookie: `${CSRF_COOKIE}=${csrfCookie}` } },
       env,
     )
     expect(res.status).toBe(502)

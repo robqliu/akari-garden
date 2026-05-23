@@ -13,14 +13,15 @@ export type Bindings = {
   // sessions and in-flight OAuth redirects.
   SESSION_SIGNING_KEY: string
 
-  // Public origin of this API (e.g. http://localhost:3000 in dev).
-  // Used to build the OAuth redirect_uri. Must exactly match one of
-  // the authorized redirect URIs on the Google Cloud OAuth client.
+  // Public origin of this API, e.g. http://localhost:3000 in dev or
+  // https://akari-garden-api.<account>.workers.dev in prod. Used to
+  // build the OAuth redirect_uri, which Google requires to exactly
+  // match a URI you registered on the OAuth client:
+  // https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred
   PUBLIC_API_URL: string
 
-  // Stores per-user OAuth records (refresh token, Google sub).
-  // Configured in wrangler.jsonc; in dev, dev-server.ts supplies an
-  // in-memory polyfill.
+  // Stores per-user OAuth records (refresh token, Google sub). In
+  // dev, an in-memory polyfill.
   USERS_KV: KVNamespace
 }
 
