@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import {
   deleteCookie,
   getCookie,
+  getSignedCookie,
   setCookie,
   setSignedCookie,
 } from 'hono/cookie'
@@ -69,6 +70,25 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     })
 
     return c.redirect('/')
+  })
+
+  auth.get('/me', async (c) => {
+    const user = await getSessionUser(c)
+    if (!user) return c.json({ hasGoogleAccess: false })
+    return c.json({ hasGoogleAccess: true })
+  })
+
+  auth.post('/logout', async (c) => {
+    const sessionId = await getSessionId(c)
+    if (sessionId) {
+      const user = await getSessionUser(c)
+      if (user) {
+        await revokeRefreshToken(user.refreshToken, fetchImpl)
+        await c.env.USERS_KV.delete(`session:${sessionId}`)
+      }
+      deleteCookie(c, SESSION_COOKIE, { path: '/' })
+    }
+    return c.json({ ok: true })
   })
 
   return auth
@@ -174,6 +194,36 @@ async function createSession(
   }
   await env.USERS_KV.put(`session:${sessionId}`, JSON.stringify(record))
   return sessionId
+}
+
+async function getSessionId(c: Context<AppEnv>): Promise<string | null> {
+  const value = await getSignedCookie(c, c.env.SESSION_SIGNING_KEY, SESSION_COOKIE)
+  return typeof value === 'string' ? value : null
+}
+
+async function getSessionUser(c: Context<AppEnv>): Promise<UserRecord | null> {
+  const sessionId = await getSessionId(c)
+  if (!sessionId) return null
+  const raw = await c.env.USERS_KV.get(`session:${sessionId}`)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as UserRecord
+  } catch {
+    return null
+  }
+}
+
+// Best-effort: if Google's /revoke fails (token already dead, network
+// blip) we still want to clear our own state.
+async function revokeRefreshToken(refreshToken: string, fetchImpl: typeof fetch): Promise<void> {
+  try {
+    await fetchImpl(
+      `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`,
+      { method: 'POST' },
+    )
+  } catch {
+    // intentionally swallowed
+  }
 }
 
 // Cookie security flags — do not remove without understanding the
