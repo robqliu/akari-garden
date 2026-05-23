@@ -233,14 +233,27 @@ async function revokeRefreshToken(refreshToken: string, fetchImpl: typeof fetch)
 //   httpOnly  - JS can't read the cookie, so XSS can't steal it
 //   secure    - only sent over HTTPS, prevents leak on plain HTTP
 //              (dropped on localhost so dev works over http)
-//   sameSite  - browser won't attach on cross-site POSTs, blocking CSRF
+//   sameSite  - 'None' because the FE and BE are on different origins
+//              in production, and 'Lax' blocks cookies on cross-origin
+//              fetch() calls. CSRF protection comes from CORS (only
+//              PUBLIC_WEB_URL can make credentialed requests).
+//
+//              TODO: switch to 'Lax' when FE and BE share an origin.
+//              With 'None', a malicious site that somehow bypasses
+//              CORS (e.g. a browser bug, or a misconfigured
+//              PUBLIC_WEB_URL) could make credentialed requests using
+//              the victim's session cookie. 'Lax' prevents that at
+//              the browser level regardless of CORS config.
 function secureCookieOptions(c: Context<AppEnv>): {
-  httpOnly: boolean; secure: boolean; sameSite: 'Lax'; path: string
+  httpOnly: boolean; secure: boolean; sameSite: 'None' | 'Lax'; path: string
 } {
+  const isLocal = new URL(c.req.url).hostname === 'localhost'
   return {
     httpOnly: true,
-    secure: new URL(c.req.url).hostname !== 'localhost',
-    sameSite: 'Lax',
+    secure: !isLocal,
+    // SameSite=None requires Secure, which isn't set on localhost.
+    // Use Lax in dev (same-origin via Vite proxy, so it works).
+    sameSite: isLocal ? 'Lax' : 'None',
     path: '/',
   }
 }
