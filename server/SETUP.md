@@ -18,14 +18,14 @@ accounts.
 
 2. **Set environment variables:**
 
-   ```
+   ```sh
    cp server/.env.example server/.env
    ```
 
    Paste the Client ID and Client secret from step 1 into `GOOGLE_CLIENT_ID`
    and `GOOGLE_CLIENT_SECRET`. Generate a signing key:
 
-   ```
+   ```sh
    openssl rand -hex 32
    ```
 
@@ -33,7 +33,7 @@ accounts.
 
 3. **Install dependencies and start:**
 
-   ```
+   ```sh
    pnpm install
    pnpm --filter @akari-garden/server dev
    ```
