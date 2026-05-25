@@ -124,6 +124,10 @@ dist
 
 # pnpm
 .pnpm-store
+package-lock.json
+
+# Cloudflare Wrangler
+.wrangler/
 
 # yarn v3
 .pnp.*
