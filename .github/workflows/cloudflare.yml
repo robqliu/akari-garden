@@ -24,8 +24,6 @@ jobs:
 
       - run: pnpm install
       - name: Build web
-        env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: pnpm --filter @akari-garden/web build
 
       # See cloudflare-pages.yml history for why this calls wrangler

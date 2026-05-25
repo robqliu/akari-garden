@@ -54,6 +54,7 @@ async function signIn(app: Hono<AppEnv>, env: Bindings): Promise<string> {
     env,
   )
   expect(cbRes.status).toBe(302)
+  expect(cbRes.headers.get('location')).toBe('http://localhost:5173')
   const sessionCookie = extractCookie(cbRes.headers.get('set-cookie'), SESSION_COOKIE)
   expect(sessionCookie).toBeTruthy()
   return sessionCookie!

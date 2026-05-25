@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
+import { API_URL } from './config'
 import './GoogleAccount.css'
-
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 type Status = 'loading' | 'connected' | 'disconnected' | 'error'
 
@@ -11,7 +10,7 @@ function GoogleAccount() {
 
   useEffect(() => {
     let cancelled = false
-    fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' })
+    fetch(`${API_URL}/api/auth/me`, { credentials: 'include' })
       .then((res) => res.json())
       .then((data: { hasGoogleAccess: boolean }) => {
         if (!cancelled) setStatus(data.hasGoogleAccess ? 'connected' : 'disconnected')
@@ -23,12 +22,12 @@ function GoogleAccount() {
   }, [retryKey])
 
   const handleConnect = () => {
-    window.location.href = `${API_BASE}/api/auth/google/start`
+    window.location.href = `${API_URL}/api/auth/google/start`
   }
 
   const handleDisconnect = () => {
     setStatus('loading')
-    fetch(`${API_BASE}/api/auth/logout`, {
+    fetch(`${API_URL}/api/auth/logout`, {
       method: 'POST',
       credentials: 'include',
     })
