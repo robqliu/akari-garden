@@ -88,8 +88,8 @@ the code line-for-line is just maintenance burden with no safety value.
 
 Ask: what behavior does this test protect? If the answer is "the code does X" rather than "the feature does Y," reconsider.
 
-If a test requires mocking out many dependencies, that's a signal you're probably at the wrong abstraction level — consider
-moving up to an integration or route-level test instead. Low-level unit tests are appropriate when the logic is
-algorithmically complex enough that testing it through a higher-level interface would obscure the cases being covered.
-
-Server tests run against real Hono routes via `app.request()` — this is the preferred level for API behavior.
+Pick the test level that matches what you're trying to protect. A route-level test (calling the full app stack with a
+fake KV store) exercises auth, routing, serialization, and business logic together — good default for API behavior. A
+lower-level unit test makes sense when the logic is algorithmically complex enough that testing through the full stack
+would obscure the cases being covered. Either way, if a test requires mocking out many dependencies just to run, that's
+usually a sign the code is at the wrong abstraction level rather than a sign you need more mocks.
