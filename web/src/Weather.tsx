@@ -181,9 +181,9 @@ function Weather() {
             <div>
               <p className="weather-condition">{condition.label}</p>
               <p className="weather-temps">
-                <span className="weather-temp-high">{Math.round(forecast.tempMax)}°</span>
+                <span className="weather-temp-high">{forecast.tempMax != null ? Math.round(forecast.tempMax) : '—'}°</span>
                 <span className="weather-temp-sep"> / </span>
-                <span className="weather-temp-low">{Math.round(forecast.tempMin)}°</span>
+                <span className="weather-temp-low">{forecast.tempMin != null ? Math.round(forecast.tempMin) : '—'}°</span>
                 <span className="weather-temp-unit">C</span>
               </p>
             </div>
@@ -195,9 +195,9 @@ function Weather() {
                 <Wind size={14} aria-hidden /> Wind
               </dt>
               <dd>
-                {forecast.windSpeedMax.toFixed(1)} m/s{' '}
+                {forecast.windSpeedMax?.toFixed(1) ?? '—'} m/s{' '}
                 <span className="weather-muted">
-                  {formatWindDirection(forecast.windDirection)}
+                  {forecast.windDirection != null ? formatWindDirection(forecast.windDirection) : '—'}
                 </span>
               </dd>
             </div>
@@ -205,7 +205,7 @@ function Weather() {
               <dt>
                 <Droplets size={14} aria-hidden /> Rain
               </dt>
-              <dd>{forecast.precipitation.toFixed(1)} mm</dd>
+              <dd>{forecast.precipitation?.toFixed(1) ?? '—'} mm</dd>
             </div>
           </dl>
         </>
