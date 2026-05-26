@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CalendarSetup from './CalendarSetup'
 import { API_URL } from './config'
 import GoogleAccount from './GoogleAccount'
 import Weather from './Weather'
@@ -20,7 +21,9 @@ function App() {
         Backend status: <strong>{health}</strong>
       </p>
       <Weather />
-      <GoogleAccount />
+      <GoogleAccount>
+        <CalendarSetup />
+      </GoogleAccount>
     </div>
   )
 }

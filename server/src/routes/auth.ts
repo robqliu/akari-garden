@@ -14,11 +14,15 @@ import {
   deleteSession,
   getAuthenticatedUser,
   getSessionId,
+  getUser,
   putSession,
   putUser,
 } from '../lib/kv.js'
 
-const SCOPES = 'openid'
+const SCOPES = [
+  'openid',
+  'https://www.googleapis.com/auth/calendar.app.created',
+].join(' ')
 
 // Cookie that survives the redirect to Google and back, carrying the
 // signed state token so the callback can verify the redirect is legit.
@@ -56,16 +60,20 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     const tokens = await exchangeCodeForTokens(code, c.env, fetchImpl)
     if (!tokens) return c.json({ error: 'token_exchange_failed' }, 502)
 
-    const googleSub = extractGoogleSub(tokens.id_token)
-    if (!googleSub) return c.json({ error: 'invalid_id_token' }, 502)
+    const userId = extractGoogleSub(tokens.id_token)
+    if (!userId) return c.json({ error: 'invalid_id_token' }, 502)
 
-    await putUser(c.env, googleSub, {
+    // Merge with existing record to preserve fields like calendarId
+    // that were set between the user's previous login and this one.
+    const existing = await getUser(c.env, userId)
+    await putUser(c.env, userId, {
+      ...existing,
       refreshToken: tokens.refresh_token,
-      createdAt: new Date().toISOString(),
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
     })
 
     const sessionId = crypto.randomUUID()
-    await putSession(c.env, sessionId, { googleSub })
+    await putSession(c.env, sessionId, { userId })
 
     await setSignedCookie(c, SESSION_COOKIE, sessionId, c.env.SESSION_SIGNING_KEY, {
       ...secureCookieOptions(c),
@@ -169,7 +177,7 @@ async function exchangeCodeForTokens(
     }),
   })
   if (!res.ok) {
-    console.error(`Google /token failed: ${res.status}`)
+    console.error(`Google /token failed: ${res.status}`, await res.text())
     return null
   }
   return (await res.json()) as TokenResponse
