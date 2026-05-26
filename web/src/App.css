@@ -1,0 +1,40 @@
+.app {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.app__content {
+  padding-bottom: 4rem;
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4rem;
+  background: white;
+  border-top: 1px solid #e0dbd0;
+  display: flex;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.bottom-nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.bottom-nav__item--active {
+  color: #2d5a27;
+}
