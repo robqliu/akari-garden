@@ -14,6 +14,7 @@ import {
   deleteSession,
   getAuthenticatedUser,
   getSessionId,
+  getUser,
   putSession,
   putUser,
 } from '../lib/kv.js'
@@ -59,9 +60,13 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     const googleSub = extractGoogleSub(tokens.id_token)
     if (!googleSub) return c.json({ error: 'invalid_id_token' }, 502)
 
+    // Merge with existing record to preserve fields like calendarId
+    // that were set between the user's previous login and this one.
+    const existing = await getUser(c.env, googleSub)
     await putUser(c.env, googleSub, {
+      ...existing,
       refreshToken: tokens.refresh_token,
-      createdAt: new Date().toISOString(),
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
     })
 
     const sessionId = crypto.randomUUID()
