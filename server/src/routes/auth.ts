@@ -177,7 +177,7 @@ async function exchangeCodeForTokens(
     }),
   })
   if (!res.ok) {
-    console.error(`Google /token failed: ${res.status}`)
+    console.error(`Google /token failed: ${res.status}`, await res.text())
     return null
   }
   return (await res.json()) as TokenResponse

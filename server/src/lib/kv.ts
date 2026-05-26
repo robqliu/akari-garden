@@ -24,6 +24,8 @@ export type UserRecord = {
   calendarId?: string
 }
 
+export type AuthResult = { user: UserRecord; userId: string }
+
 export async function putSession(env: Bindings, sessionId: string, record: SessionRecord): Promise<void> {
   await env.USERS_KV.put(`session:${sessionId}`, JSON.stringify(record))
 }
@@ -33,7 +35,8 @@ export async function getSession(env: Bindings, sessionId: string): Promise<Sess
   if (!raw) return null
   try {
     return JSON.parse(raw) as SessionRecord
-  } catch {
+  } catch (err) {
+    console.error('Failed to parse session record:', err)
     return null
   }
 }
@@ -51,7 +54,8 @@ export async function getUser(env: Bindings, userId: string): Promise<UserRecord
   if (!raw) return null
   try {
     return JSON.parse(raw) as UserRecord
-  } catch {
+  } catch (err) {
+    console.error('Failed to parse user record:', err)
     return null
   }
 }

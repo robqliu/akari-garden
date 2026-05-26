@@ -9,29 +9,32 @@ const GOOGLE_CALENDARS_URL = 'https://www.googleapis.com/calendar/v3/calendars'
 export function buildCalendarRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
   const router = new Hono<AppEnv>()
 
-  router.get('/registered', async (c) => {
+  router.use(async (c, next) => {
     const auth = await getAuthenticatedUserWithId(c)
     if (!auth) return c.json({ error: 'not_authenticated' }, 401)
+    c.set('auth', auth)
+    await next()
+  })
 
-    if (!auth.user.calendarId) return c.json({ calendar: null })
-    return c.json({ calendar: { id: auth.user.calendarId } })
+  router.get('/registered', async (c) => {
+    const { user } = c.get('auth')
+    if (!user.calendarId) return c.json({ calendar: null })
+    return c.json({ calendar: { id: user.calendarId } })
   })
 
   router.post('/create', async (c) => {
-    const auth = await getAuthenticatedUserWithId(c)
-    if (!auth) return c.json({ error: 'not_authenticated' }, 401)
-
+    const { user, userId } = c.get('auth')
     const body = await c.req.json<{ name?: string }>()
     const name = body.name?.trim() || 'Akari Garden'
 
-    const accessToken = await refreshAccessToken(auth.user.refreshToken, c.env, fetchImpl)
+    const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
     if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
     const created = await createGoogleCalendar(accessToken, name, fetchImpl)
     if (!created) return c.json({ error: 'google_unavailable' }, 502)
 
-    auth.user.calendarId = created.id
-    await putUser(c.env, auth.userId, auth.user)
+    user.calendarId = created.id
+    await putUser(c.env, userId, user)
 
     return c.json({ calendar: { id: created.id } })
   })
@@ -55,7 +58,7 @@ async function refreshAccessToken(
     }),
   })
   if (!res.ok) {
-    console.error(`Google /token refresh failed: ${res.status}`)
+    console.error(`Google /token refresh failed: ${res.status}`, await res.text())
     return null
   }
   return ((await res.json()) as { access_token: string }).access_token
@@ -75,7 +78,7 @@ async function createGoogleCalendar(
     body: JSON.stringify({ summary: name }),
   })
   if (!res.ok) {
-    console.error(`Google calendar create failed: ${res.status}`)
+    console.error(`Google calendar create failed: ${res.status}`, await res.text())
     return null
   }
   return { id: ((await res.json()) as { id: string }).id }

@@ -1,4 +1,5 @@
 import type { KVNamespace } from '@cloudflare/workers-types'
+import type { AuthResult } from './kv.js'
 
 // Values passed to Hono handlers via `c.env`. In production the
 // Workers runtime injects them. In dev, dev-server.ts fabricates
@@ -31,4 +32,7 @@ export type Bindings = {
   USERS_KV: KVNamespace
 }
 
-export type AppEnv = { Bindings: Bindings }
+export type AppEnv = {
+  Bindings: Bindings
+  Variables: { auth: AuthResult }
+}
