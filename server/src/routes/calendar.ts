@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 
 import type { AppEnv, Bindings } from '../lib/env.js'
-import { getAuthenticatedUserWithSub, putUser } from '../lib/kv.js'
+import { getAuthenticatedUserWithId, putUser } from '../lib/kv.js'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_CALENDARS_URL = 'https://www.googleapis.com/calendar/v3/calendars'
@@ -10,7 +10,7 @@ export function buildCalendarRouter(fetchImpl: typeof fetch = fetch): Hono<AppEn
   const router = new Hono<AppEnv>()
 
   router.get('/registered', async (c) => {
-    const auth = await getAuthenticatedUserWithSub(c)
+    const auth = await getAuthenticatedUserWithId(c)
     if (!auth) return c.json({ error: 'not_authenticated' }, 401)
 
     if (!auth.user.calendarId) return c.json({ calendar: null })
@@ -18,7 +18,7 @@ export function buildCalendarRouter(fetchImpl: typeof fetch = fetch): Hono<AppEn
   })
 
   router.post('/create', async (c) => {
-    const auth = await getAuthenticatedUserWithSub(c)
+    const auth = await getAuthenticatedUserWithId(c)
     if (!auth) return c.json({ error: 'not_authenticated' }, 401)
 
     const body = await c.req.json<{ name?: string }>()
@@ -31,7 +31,7 @@ export function buildCalendarRouter(fetchImpl: typeof fetch = fetch): Hono<AppEn
     if (!created) return c.json({ error: 'google_unavailable' }, 502)
 
     auth.user.calendarId = created.id
-    await putUser(c.env, auth.googleSub, auth.user)
+    await putUser(c.env, auth.userId, auth.user)
 
     return c.json({ calendar: { id: created.id } })
   })
