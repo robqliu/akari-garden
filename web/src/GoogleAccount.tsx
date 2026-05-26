@@ -4,7 +4,7 @@ import './GoogleAccount.css'
 
 type Status = 'loading' | 'connected' | 'disconnected' | 'error'
 
-function GoogleAccount() {
+function GoogleAccount({ children }: { children?: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('loading')
   const [retryKey, setRetryKey] = useState(0)
 
@@ -57,12 +57,15 @@ function GoogleAccount() {
       )}
 
       {status === 'connected' && (
-        <div className="google-account-connected">
-          <p>Logged in</p>
-          <button type="button" className="google-account-disconnect" onClick={handleDisconnect}>
-            Log out
-          </button>
-        </div>
+        <>
+          <div className="google-account-connected">
+            <p>Logged in</p>
+            <button type="button" className="google-account-disconnect" onClick={handleDisconnect}>
+              Log out
+            </button>
+          </div>
+          {children}
+        </>
       )}
     </section>
   )

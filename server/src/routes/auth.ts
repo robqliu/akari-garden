@@ -19,7 +19,10 @@ import {
   putUser,
 } from '../lib/kv.js'
 
-const SCOPES = 'openid'
+const SCOPES = [
+  'openid',
+  'https://www.googleapis.com/auth/calendar.app.created',
+].join(' ')
 
 // Cookie that survives the redirect to Google and back, carrying the
 // signed state token so the callback can verify the redirect is legit.

@@ -20,6 +20,7 @@ export type SessionRecord = {
 export type UserRecord = {
   refreshToken: string
   createdAt: string
+  calendarId?: string
 }
 
 export async function putSession(env: Bindings, sessionId: string, record: SessionRecord): Promise<void> {
@@ -56,11 +57,22 @@ export async function getUser(env: Bindings, googleSub: string): Promise<UserRec
 
 // Resolves session cookie → session record → user record.
 export async function getAuthenticatedUser(c: Context<AppEnv>): Promise<UserRecord | null> {
+  const result = await getAuthenticatedUserWithSub(c)
+  return result?.user ?? null
+}
+
+// Same as getAuthenticatedUser but also returns the googleSub, needed
+// by routes that update the user record (which is keyed by sub).
+export async function getAuthenticatedUserWithSub(
+  c: Context<AppEnv>,
+): Promise<{ user: UserRecord; googleSub: string } | null> {
   const sessionId = await getSessionId(c)
   if (!sessionId) return null
   const session = await getSession(c.env, sessionId)
   if (!session) return null
-  return getUser(c.env, session.googleSub)
+  const user = await getUser(c.env, session.googleSub)
+  if (!user) return null
+  return { user, googleSub: session.googleSub }
 }
 
 export async function getSessionId(c: Context<AppEnv>): Promise<string | null> {
