@@ -8,12 +8,14 @@
   "observability": {
     "enabled": true
   },
-  // The `binding` name matches the USERS_KV field on Bindings in
-  // src/lib/env.ts. Local dev uses an in-memory polyfill instead.
-  "kv_namespaces": [
+  // Run `pnpm dlx wrangler d1 create akari-garden-db` once to create
+  // the database and paste the returned database_id below.
+  "d1_databases": [
     {
-      "binding": "USERS_KV",
-      "id": "663c0f22835c41359ab74d546632b234"
+      "binding": "DB",
+      "database_name": "akari-garden-db",
+      "database_id": "0139736a-a1f7-4c23-9d74-ea854c3b26e5",
+      "migrations_dir": "migrations"
     }
   ],
   // Non-sensitive config. Actual secrets (GOOGLE_CLIENT_SECRET,

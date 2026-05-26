@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 
 import type { AppEnv, Bindings } from '../lib/env.js'
-import { getAuthenticatedUserWithId, putUser } from '../lib/kv.js'
+import { getAuthenticatedUserWithId, putUser } from '../lib/db.js'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_CALENDARS_URL = 'https://www.googleapis.com/calendar/v3/calendars'

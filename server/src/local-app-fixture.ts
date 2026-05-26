@@ -1,7 +1,7 @@
 import { expect } from 'vitest'
-import type { KVNamespace } from '@cloudflare/workers-types'
 
 import { buildApp } from './app.js'
+import { createSqliteD1 } from './lib/d1-polyfill.js'
 import type { Bindings } from './lib/env.js'
 import { mockGoogleApi } from './routes/mock-google-api.js'
 
@@ -12,16 +12,6 @@ export function extractCookie(setCookie: string | null, name: string): string | 
   if (!setCookie) return null
   const match = setCookie.match(new RegExp(`(?:^|, )${name}=([^;]+)`))
   return match ? match[1] : null
-}
-
-class MemoryKV {
-  private store = new Map<string, string>()
-
-  get = (async (key: string) => this.store.get(key) ?? null) as KVNamespace['get']
-  put = (async (key: string, value: string) => { this.store.set(key, value) }) as KVNamespace['put']
-  delete = (async (key: string) => { this.store.delete(key) }) as KVNamespace['delete']
-  list = (() => { throw new Error('MemoryKV: list not implemented') }) as unknown as KVNamespace['list']
-  getWithMetadata = (() => { throw new Error('MemoryKV: getWithMetadata not implemented') }) as unknown as KVNamespace['getWithMetadata']
 }
 
 export class LocalAppFixture {
@@ -35,7 +25,7 @@ export class LocalAppFixture {
       SESSION_SIGNING_KEY: 'test-signing-key',
       PUBLIC_API_URL: 'http://localhost:3000',
       PUBLIC_WEB_URL: 'http://localhost:5173',
-      USERS_KV: new MemoryKV() as unknown as KVNamespace,
+      DB: createSqliteD1(),
     }
     this.app = buildApp(fetchMock)
   }

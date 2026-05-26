@@ -129,6 +129,9 @@ package-lock.json
 # Cloudflare Wrangler
 .wrangler/
 
+# Local dev SQLite database
+*.sqlite
+
 # yarn v3
 .pnp.*
 .yarn/*

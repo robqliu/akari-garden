@@ -17,7 +17,7 @@ import {
   getUser,
   putSession,
   putUser,
-} from '../lib/kv.js'
+} from '../lib/db.js'
 
 const SCOPES = [
   'openid',
