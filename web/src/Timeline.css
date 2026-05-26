@@ -1,0 +1,171 @@
+.timeline {
+  display: flex;
+  flex-direction: column;
+  max-width: 600px;
+  margin: 0 auto;
+  font-family: system-ui;
+  padding-bottom: 5rem;
+}
+
+.timeline__filters {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 1rem;
+  scrollbar-width: none;
+}
+
+.filter-btn {
+  white-space: nowrap;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1.5px solid #e0dbd0;
+  background: #f8f6f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.filter-btn--active {
+  background: #2d5a27;
+  border-color: #2d5a27;
+  color: white;
+}
+
+.timeline__notes {
+  padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.timeline__empty {
+  color: #888;
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.note-card {
+  border: 1.5px solid #e0dbd0;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  background: white;
+}
+
+.note-card__crops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.note-card__crop-tag {
+  font-size: 0.8rem;
+  background: #eef5ec;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  color: #2d5a27;
+}
+
+.note-card__text {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.note-card__date {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+/* FAB */
+.fab {
+  position: fixed;
+  bottom: 5rem;
+  right: 1.25rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #2d5a27;
+  color: white;
+  font-size: 1.75rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Compose sheet */
+.compose-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: flex-end;
+  z-index: 100;
+}
+
+.compose-sheet {
+  background: white;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  border-radius: 16px 16px 0 0;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.compose-sheet__crop-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tag-btn {
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1.5px solid #e0dbd0;
+  background: #f8f6f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tag-btn--selected {
+  border-color: #2d5a27;
+  background: #eef5ec;
+  color: #2d5a27;
+}
+
+.compose-sheet__textarea {
+  width: 100%;
+  border: 1px solid #e0dbd0;
+  border-radius: 8px;
+  padding: 0.5rem;
+  font-family: inherit;
+  font-size: 1rem;
+  resize: none;
+  box-sizing: border-box;
+}
+
+.compose-sheet__save {
+  align-self: flex-end;
+  padding: 0.5rem 1.5rem;
+  background: #2d5a27;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.compose-sheet__save:disabled {
+  background: #bbb;
+  cursor: default;
+}
