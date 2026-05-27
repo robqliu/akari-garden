@@ -1,5 +1,5 @@
-import type { KVNamespace } from '@cloudflare/workers-types'
-import type { AuthResult } from './kv.js'
+import type { D1Database } from '@cloudflare/workers-types'
+import type { AuthResult } from './db.js'
 
 // Values passed to Hono handlers via `c.env`. In production the
 // Workers runtime injects them. In dev, dev-server.ts fabricates
@@ -27,9 +27,9 @@ export type Bindings = {
   // credentialed requests (session cookie) from the frontend.
   PUBLIC_WEB_URL: string
 
-  // Stores per-user OAuth records (refresh token, Google sub). In
-  // dev, an in-memory polyfill.
-  USERS_KV: KVNamespace
+  // SQLite database via Cloudflare D1. In dev, an adapter backed
+  // by better-sqlite3
+  DB: D1Database
 }
 
 export type AppEnv = {
