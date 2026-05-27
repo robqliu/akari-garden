@@ -5,6 +5,9 @@ import type { AppEnv, Bindings } from './env.js'
 
 const SESSION_COOKIE = 'ag_session'
 
+// userId is the Google `sub` claim — a stable identifier from the ID token:
+// https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload
+// Multiple sessions can reference the same userId (e.g. two devices signed into the same account).
 export type SessionRecord = {
   userId: string
 }
@@ -35,6 +38,8 @@ export async function deleteSession(env: Bindings, sessionId: string): Promise<v
   await env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run()
 }
 
+// Upserts a user record. On conflict (re-login), updates mutable fields but
+// leaves created_at unchanged so we preserve the original signup timestamp.
 export async function putUser(env: Bindings, userId: string, record: UserRecord): Promise<void> {
   await env.DB.prepare(`
     INSERT INTO users (id, refresh_token, calendar_id, created_at) VALUES (?, ?, ?, ?)
@@ -56,11 +61,14 @@ export async function getUser(env: Bindings, userId: string): Promise<UserRecord
   }
 }
 
+// Resolves session cookie → session record → user record.
 export async function getAuthenticatedUser(c: Context<AppEnv>): Promise<UserRecord | null> {
   const result = await getAuthenticatedUserWithId(c)
   return result?.user ?? null
 }
 
+// Same as getAuthenticatedUser but also returns the userId, needed
+// by routes that update the user record (which is keyed by userId).
 export async function getAuthenticatedUserWithId(
   c: Context<AppEnv>,
 ): Promise<{ user: UserRecord; userId: string } | null> {

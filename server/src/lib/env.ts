@@ -27,8 +27,8 @@ export type Bindings = {
   // credentialed requests (session cookie) from the frontend.
   PUBLIC_WEB_URL: string
 
-  // SQLite database via Cloudflare D1. In dev, a better-sqlite3
-  // polyfill backed by a local .dev.sqlite file.
+  // SQLite database via Cloudflare D1. In dev, an adapter backed
+  // by better-sqlite3
   DB: D1Database
 }
 

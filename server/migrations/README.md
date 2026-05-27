@@ -9,9 +9,9 @@ D1 tracks applied migrations in an internal `d1_migrations` table. When you run
 haven't been applied yet, in filename order. It never re-runs a file it has
 already applied.
 
-In local dev and tests, the better-sqlite3 polyfill (`src/lib/d1-polyfill.ts`)
-reads the migration files directly and runs them on startup with
-`CREATE TABLE IF NOT EXISTS`, so schema changes are picked up automatically.
+In local dev and tests, the better-sqlite3 adapter (`src/lib/d1-adapter.ts`)
+reads all `.sql` files from this directory in filename order and applies them
+on startup, so new migrations are picked up automatically.
 
 ## Adding a migration
 

@@ -1,7 +1,7 @@
 import { expect } from 'vitest'
 
 import { buildApp } from './app.js'
-import { createSqliteD1 } from './lib/d1-polyfill.js'
+import { createSqliteD1 } from './lib/d1-adapter.js'
 import type { Bindings } from './lib/env.js'
 import { mockGoogleApi } from './routes/mock-google-api.js'
 

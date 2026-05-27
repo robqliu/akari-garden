@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server'
 
 import { app } from './app.js'
-import { createSqliteD1 } from './lib/d1-polyfill.js'
+import { createSqliteD1 } from './lib/d1-adapter.js'
 import type { Bindings } from './lib/env.js'
 
 const port = parseInt(process.env.PORT || '3000', 10)

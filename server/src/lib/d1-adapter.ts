@@ -1,13 +1,16 @@
 import BetterSqlite3 from 'better-sqlite3'
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations')
 
 function loadSchema(): string {
-  return readFileSync(join(MIGRATIONS_DIR, '0001_users_sessions.sql'), 'utf-8')
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+  return files.map((f) => readFileSync(join(MIGRATIONS_DIR, f), 'utf-8')).join('\n')
 }
 
 export function createSqliteD1(path: string = ':memory:'): D1Database {
@@ -26,6 +29,8 @@ export function createSqliteD1(path: string = ':memory:'): D1Database {
         async first<T = unknown>(): Promise<T | null> {
           return (sqlite.prepare(sql).get(boundValues) as T) ?? null
         },
+        // run() is for writes (INSERT/UPDATE/DELETE). D1 always returns empty results
+        // from run() — use all() if you need rows back.
         async run() {
           sqlite.prepare(sql).run(boundValues)
           return { success: true, results: [], meta: {} }
@@ -38,8 +43,12 @@ export function createSqliteD1(path: string = ':memory:'): D1Database {
     },
     async exec(sql: string) {
       sqlite.exec(sql)
+      // count is the number of SQL statements executed; duration is wall-clock ms.
+      // Both are informational and unused by our callers, so we don't bother computing them.
       return { count: 0, duration: 0 }
     },
+    // Real D1 batch() is atomic — a statement failure rolls back all prior statements.
+    // This adapter is NOT atomic; prior statements commit even if a later one throws.
     async batch(statements: D1PreparedStatement[]) {
       const results = []
       for (const stmt of statements) {
@@ -48,7 +57,7 @@ export function createSqliteD1(path: string = ':memory:'): D1Database {
       return results
     },
     async dump() {
-      throw new Error('dump not supported in local polyfill')
+      throw new Error('dump not supported in local adapter')
     },
   } as unknown as D1Database
 }
