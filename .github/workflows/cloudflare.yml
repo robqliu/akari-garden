@@ -59,28 +59,18 @@ jobs:
 
       - run: pnpm install
 
-      # Checks whether any migration files in server/migrations/ have not yet
-      # been applied to the production D1 database. Steps that follow are
-      # skipped (and shown as "Skipped" in the GitHub Actions UI) when there
-      # are no pending migrations, giving zero-downtime deploys for code-only
-      # changes. For manual recovery steps see docs/operations.md.
-      - name: Check for pending migrations
-        id: migrations
-        working-directory: server
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          MIGRATION_LIST=$(pnpm dlx wrangler@latest d1 migrations list akari-garden-db --remote 2>&1)
-          if [ $? -ne 0 ]; then echo "$MIGRATION_LIST"; exit 1; fi
-          PENDING=$(echo "$MIGRATION_LIST" | grep -c "Not Applied" || true)
-          echo "pending=$PENDING" >> $GITHUB_OUTPUT
-
-      # Blocks all incoming requests with 503 while the schema is being
-      # updated. Workers are stateless so CONFIG_KV is the only way to
-      # signal across all running instances without a code deploy.
-      - name: Disable server (pending migrations require downtime)
-        if: steps.migrations.outputs.pending != '0'
+      # Disables the server for all deploys regardless of whether migrations
+      # are pending. This means every deploy has a brief downtime window
+      # (typically a few seconds). The tradeoff is simplicity — detecting
+      # pending migrations reliably would require querying the d1_migrations
+      # table and diffing against server/migrations/*.sql, since wrangler's
+      # human-readable "Not Applied" output has no API stability guarantee.
+      # For manual recovery steps see docs/operations.md.
+      #
+      # Blocks all incoming requests with 503 while schema and code are being
+      # updated. Workers are stateless so CONFIG_KV is the only way to signal
+      # across all running instances without a code deploy.
+      - name: Disable server
         working-directory: server
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -88,7 +78,6 @@ jobs:
         run: pnpm dlx wrangler@latest kv key put --binding CONFIG_KV disable_server "1"
 
       - name: Apply D1 migrations
-        if: steps.migrations.outputs.pending != '0'
         working-directory: server
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -105,7 +94,7 @@ jobs:
       # always() ensures this runs even if a previous step failed, so the
       # site is not left down after a broken migration or deploy.
       - name: Re-enable server
-        if: always() && steps.migrations.outputs.pending != '0'
+        if: always()
         working-directory: server
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -49,7 +49,28 @@ Go to the `Deploy to Cloudflare` workflow in GitHub Actions and use **Run workfl
 
 - **Namespace ID:** `e4072ad9a4064ca2badeb10a813fee24`
 - **Current keys:**
-  - `disable_server` — `"1"` while deploying schema changes; `"0"` otherwise
+  - `disable_server` — `"1"` while deploying; `"0"` otherwise
+
+To read or write keys directly:
+```sh
+cd server
+wrangler kv key get --binding CONFIG_KV <key>
+wrangler kv key put --binding CONFIG_KV <key> <value>
+```
+
+### Zero-downtime deploys
+
+Every deploy currently disables the server briefly (typically a few seconds). To skip this for code-only deploys, you would need to detect whether any migrations are actually pending and condition the disable/enable steps on that. The reliable way to do this is to query the `d1_migrations` tracking table and diff against the files on disk, rather than parsing wrangler's human-readable output:
+
+```bash
+APPLIED=$(wrangler d1 execute akari-garden-db --remote \
+  --command "SELECT name FROM d1_migrations" --json \
+  | jq -r '.[0].results[].name')
+FILES=$(ls migrations/*.sql | xargs -n1 basename)
+PENDING=$(comm -23 <(echo "$FILES" | sort) <(echo "$APPLIED" | sort) | wc -l)
+```
+
+`jq` is available on GitHub Actions runners by default.
 
 ## D1 database
 
