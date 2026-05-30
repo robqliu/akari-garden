@@ -1,11 +1,18 @@
 import { Hono } from 'hono'
 
 import type { AppEnv } from '../lib/env.js'
-import { getAuthenticatedUserWithId } from '../lib/db.js'
+import { requireAuth } from '../lib/db.js'
 
 const PAGE_SIZE = 20
+const MAX_TEXT_LENGTH = 1000
 
-export type NoteDto = {
+// Pagination uses a base64-encoded cursor containing (createdAt, id).
+// createdAt is the primary sort key so the next-page WHERE clause needs it:
+//   WHERE (created_at < ?) OR (created_at = ? AND id > ?)
+// id is the tiebreaker for notes created in the same millisecond.
+// base64 keeps the token opaque — callers must treat it as an arbitrary
+// string, not something to construct themselves.
+export type NoteResponse = {
   id: string
   text: string
   crops: number[]
@@ -13,11 +20,12 @@ export type NoteDto = {
 }
 
 type GetNotesResponse = {
-  notes: NoteDto[]
+  notes: NoteResponse[]
   nextCursor: string | null
 }
 
-type CreateNoteRequest = {
+// unknown fields so we can validate shape before narrowing types
+type RawCreateNoteBody = {
   text?: unknown
   crops?: unknown
 }
@@ -25,12 +33,7 @@ type CreateNoteRequest = {
 export function buildNotesRouter(): Hono<AppEnv> {
   const router = new Hono<AppEnv>()
 
-  router.use('/notes', async (c, next) => {
-    const auth = await getAuthenticatedUserWithId(c)
-    if (!auth) return c.json({ error: 'not_authenticated' }, 401)
-    c.set('auth', auth)
-    await next()
-  })
+  router.use('/notes', requireAuth())
 
   router.get('/notes', async (c) => {
     const { userId } = c.get('auth')
@@ -43,40 +46,22 @@ export function buildNotesRouter(): Hono<AppEnv> {
     }
 
     const cursor = decodeCursor(cursorParam ?? null)
-
-    const noteRows = await fetchNotePage(c.env.DB, userId, cropId, cursor)
-    const noteIds = noteRows.map((r) => r.id)
-
-    const cropRows = noteIds.length > 0 ? await fetchCropsForNotes(c.env.DB, noteIds) : []
-
-    const cropsByNoteId = groupCropsByNoteId(cropRows)
-    const notes: NoteDto[] = noteRows.map((r) => ({
-      id: r.id,
-      text: r.text,
-      crops: cropsByNoteId[r.id] ?? [],
-      createdAt: r.created_at,
-    }))
-
-    const nextCursor =
-      noteRows.length === PAGE_SIZE
-        ? encodeCursor(noteRows[noteRows.length - 1].created_at, noteRows[noteRows.length - 1].id)
-        : null
-
-    return c.json<GetNotesResponse>({ notes, nextCursor })
+    const notes = await loadNotePage(c.env.DB, userId, cropId, cursor)
+    return c.json<GetNotesResponse>(notes)
   })
 
   router.post('/notes', async (c) => {
     const { userId } = c.get('auth')
-    const body = await c.req.json<CreateNoteRequest>()
+    const body = await c.req.json<RawCreateNoteBody>()
 
     const validation = validateCreateNote(body)
     if (validation.error) return c.json({ error: 'validation_failed', detail: validation.error }, 400)
     const { text, crops } = validation
 
-    const validCrops = await fetchValidCropIds(c.env.DB, crops)
-    const invalidCrop = crops.find((id) => !validCrops.has(id))
+    const validCropIds = await db.fetchValidCropIds(c.env.DB, crops)
+    const invalidCrop = crops.find((id) => !validCropIds.has(id))
     if (invalidCrop !== undefined) {
-      return c.json({ error: 'validation_failed', detail: `unknown crop: ${invalidCrop}` }, 400)
+      return c.json({ error: 'validation_failed', detail: `invalid crop id: ${invalidCrop}` }, 400)
     }
 
     const id = crypto.randomUUID()
@@ -90,82 +75,122 @@ export function buildNotesRouter(): Hono<AppEnv> {
       ),
     ])
 
-    return c.json<NoteDto>({ id, text, crops, createdAt }, 201)
+    return c.json<NoteResponse>({ id, text, crops, createdAt }, 201)
   })
 
   return router
 }
 
-// ── DB helpers ────────────────────────────────────────────────────────────────
+// ── Notes page loader ─────────────────────────────────────────────────────────
+
+async function loadNotePage(
+  dbConn: AppEnv['Bindings']['DB'],
+  userId: string,
+  cropId: number | null,
+  cursor: Cursor | null,
+): Promise<GetNotesResponse> {
+  const rows = await db.fetchNotePage(dbConn, userId, cropId, cursor)
+
+  const hasMore = rows.length > PAGE_SIZE
+  const pageRows = hasMore ? rows.slice(0, PAGE_SIZE) : rows
+  const noteIds = pageRows.map((r) => r.id)
+
+  const cropRows = noteIds.length > 0 ? await db.fetchCropsForNotes(dbConn, noteIds) : []
+  const cropsByNoteId = groupCropsByNoteId(cropRows)
+
+  const notes: NoteResponse[] = pageRows.map((r) => ({
+    id: r.id,
+    text: r.text,
+    crops: cropsByNoteId[r.id] ?? [],
+    createdAt: r.created_at,
+  }))
+
+  const nextCursor = computeNextCursor(hasMore, pageRows)
+  return { notes, nextCursor }
+}
+
+function computeNextCursor(hasMore: boolean, pageRows: NoteRow[]): string | null {
+  if (!hasMore || pageRows.length === 0) return null
+  const last = pageRows[pageRows.length - 1]
+  return encodeCursor(last.created_at, last.id)
+}
+
+// ── DB layer ──────────────────────────────────────────────────────────────────
 
 type NoteRow = { id: string; text: string; created_at: string }
 type CropRow = { note_id: string; crop_id: number }
 type Cursor = { createdAt: string; id: string }
 
-async function fetchNotePage(
-  db: AppEnv['Bindings']['DB'],
-  userId: string,
-  cropId: number | null,
-  cursor: Cursor | null,
-): Promise<NoteRow[]> {
-  const cursorCreatedAt = cursor?.createdAt ?? '9999-12-31T23:59:59.999Z'
-  const cursorId = cursor?.id ?? '￿'
+// Fetches PAGE_SIZE + 1 rows so the caller can detect whether a next page
+// exists without a separate COUNT query.
+const db = {
+  async fetchNotePage(
+    dbConn: AppEnv['Bindings']['DB'],
+    userId: string,
+    cropId: number | null,
+    cursor: Cursor | null,
+  ): Promise<NoteRow[]> {
+    const cursorCreatedAt = cursor?.createdAt ?? '9999-12-31T23:59:59.999Z'
+    const cursorId = cursor?.id ?? '￿'
 
-  if (cropId !== null) {
+    if (cropId !== null) {
+      return (
+        await dbConn
+          .prepare(
+            `SELECT n.id, n.text, n.created_at FROM notes n
+             WHERE n.created_by = ?
+               AND (n.created_at < ? OR (n.created_at = ? AND n.id > ?))
+               AND n.id IN (SELECT note_id FROM note_crops WHERE crop_id = ?)
+             ORDER BY n.created_at DESC, n.id ASC
+             LIMIT ?`,
+          )
+          .bind(userId, cursorCreatedAt, cursorCreatedAt, cursorId, cropId, PAGE_SIZE + 1)
+          .all<NoteRow>()
+      ).results
+    }
+
     return (
-      await db
+      await dbConn
         .prepare(
-          `SELECT n.id, n.text, n.created_at FROM notes n
-           WHERE n.created_by = ?
-             AND (n.created_at < ? OR (n.created_at = ? AND n.id > ?))
-             AND n.id IN (SELECT note_id FROM note_crops WHERE crop_id = ?)
-           ORDER BY n.created_at DESC, n.id ASC
+          `SELECT id, text, created_at FROM notes
+           WHERE created_by = ?
+             AND (created_at < ? OR (created_at = ? AND id > ?))
+           ORDER BY created_at DESC, id ASC
            LIMIT ?`,
         )
-        .bind(userId, cursorCreatedAt, cursorCreatedAt, cursorId, cropId, PAGE_SIZE)
+        .bind(userId, cursorCreatedAt, cursorCreatedAt, cursorId, PAGE_SIZE + 1)
         .all<NoteRow>()
     ).results
-  }
+  },
 
-  return (
-    await db
-      .prepare(
-        `SELECT id, text, created_at FROM notes
-         WHERE created_by = ?
-           AND (created_at < ? OR (created_at = ? AND id > ?))
-         ORDER BY created_at DESC, id ASC
-         LIMIT ?`,
-      )
-      .bind(userId, cursorCreatedAt, cursorCreatedAt, cursorId, PAGE_SIZE)
-      .all<NoteRow>()
-  ).results
-}
+  async fetchCropsForNotes(
+    dbConn: AppEnv['Bindings']['DB'],
+    noteIds: string[],
+  ): Promise<CropRow[]> {
+    const placeholders = noteIds.map(() => '?').join(', ')
+    return (
+      await dbConn
+        .prepare(`SELECT note_id, crop_id FROM note_crops WHERE note_id IN (${placeholders})`)
+        .bind(...noteIds)
+        .all<CropRow>()
+    ).results
+  },
 
-async function fetchCropsForNotes(
-  db: AppEnv['Bindings']['DB'],
-  noteIds: string[],
-): Promise<CropRow[]> {
-  const placeholders = noteIds.map(() => '?').join(', ')
-  return (
-    await db
-      .prepare(`SELECT note_id, crop_id FROM note_crops WHERE note_id IN (${placeholders})`)
-      .bind(...noteIds)
-      .all<CropRow>()
-  ).results
-}
-
-async function fetchValidCropIds(
-  db: AppEnv['Bindings']['DB'],
-  cropIds: number[],
-): Promise<Set<number>> {
-  const placeholders = cropIds.map(() => '?').join(', ')
-  const rows = (
-    await db
-      .prepare(`SELECT id FROM crops WHERE id IN (${placeholders})`)
-      .bind(...cropIds)
-      .all<{ id: number }>()
-  ).results
-  return new Set(rows.map((r) => r.id))
+  // TODO: cache the full crops set at startup — it's immutable without a migration,
+  // so there's no reason to query on every POST.
+  async fetchValidCropIds(
+    dbConn: AppEnv['Bindings']['DB'],
+    cropIds: number[],
+  ): Promise<Set<number>> {
+    const placeholders = cropIds.map(() => '?').join(', ')
+    const rows = (
+      await dbConn
+        .prepare(`SELECT id FROM crops WHERE id IN (${placeholders})`)
+        .bind(...cropIds)
+        .all<{ id: number }>()
+    ).results
+    return new Set(rows.map((r) => r.id))
+  },
 }
 
 function groupCropsByNoteId(rows: CropRow[]): Record<string, number[]> {
@@ -196,11 +221,14 @@ function decodeCursor(token: string | null): Cursor | null {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-function validateCreateNote(body: CreateNoteRequest):
+function validateCreateNote(body: RawCreateNoteBody):
   | { text: string; crops: number[]; error?: undefined }
   | { error: string } {
   if (typeof body.text !== 'string' || body.text.trim() === '') {
     return { error: 'text is required' }
+  }
+  if (body.text.length > MAX_TEXT_LENGTH) {
+    return { error: `text must be ${MAX_TEXT_LENGTH} characters or fewer` }
   }
   if (!Array.isArray(body.crops) || body.crops.length === 0) {
     return { error: 'crops must be a non-empty array' }

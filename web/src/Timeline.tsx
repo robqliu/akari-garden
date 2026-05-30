@@ -11,8 +11,10 @@ const CROPS: { id: CropId; name: string; emoji: string }[] = [
   { id: 4, name: 'トマト', emoji: '🍅' },
   { id: 5, name: 'ネギ', emoji: '🌿' },
   { id: 6, name: 'なす', emoji: '🍆' },
-]
+].sort((a, b) => a.name.localeCompare(b.name, 'ja'))
 
+// TODO: duplicate of NoteResponse in server/src/routes/notes.ts — move to a
+// shared packages/types package so FE and BE can't drift apart.
 type Note = {
   id: string
   crops: CropId[]
@@ -159,8 +161,6 @@ export default function Timeline() {
     setComposing(false)
   }
 
-  const filtered = notes
-
   return (
     <>
       <div className="timeline">
@@ -180,8 +180,10 @@ export default function Timeline() {
           {loadError && notes.length === 0 && (
             <p className="timeline__error">メモを読み込めませんでした。<button className="timeline__retry" onClick={() => setFilter(filter)}>再試行</button></p>
           )}
-          {!loadError && filtered.length === 0 && <p className="timeline__empty">メモがありません</p>}
-          {filtered.map((note) => (
+          {!loadError && notes.length === 0 && (
+            <p className="timeline__empty">まだメモがありません。右下の ＋ ボタンから追加できます。</p>
+          )}
+          {notes.map((note) => (
             <div key={note.id} className="note-card">
               <div className="note-card__crops">
                 {note.crops.map((cid) => {

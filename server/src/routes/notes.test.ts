@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { LocalAppFixture } from '../local-app-fixture.js'
+import { LocalAppFixture } from '../local/app-fixture.js'
 
 describe('GET /api/notes', () => {
   let fixture: LocalAppFixture
@@ -25,6 +25,7 @@ describe('GET /api/notes', () => {
 
   it('returns created notes newest-first', async () => {
     await createNote(fixture, session, 'first note', [1])
+    await new Promise((r) => setTimeout(r, 2)) // ensure distinct created_at timestamps
     await createNote(fixture, session, 'second note', [2])
 
     const res = await fixture.request('/api/notes', { headers: { cookie: `ag_session=${session}` } })
@@ -47,7 +48,8 @@ describe('GET /api/notes', () => {
 
     const res = await fixture.request('/api/notes?crop=1', { headers: { cookie: `ag_session=${session}` } })
     const body = await res.json() as { notes: Array<{ crops: number[] }> }
-    expect(body.notes[0].crops.sort()).toEqual([1, 2, 4])
+    const crops = new Set(body.notes[0].crops)
+    expect(crops).toEqual(new Set([1, 2, 4]))
   })
 
   it('returns 400 for an invalid crop param', async () => {
@@ -115,7 +117,8 @@ describe('POST /api/notes', () => {
   })
 
   it('rejects unknown crop ids', async () => {
-    const res = await createNote(fixture, session, 'some text', [999])
+    const unknownId = Math.floor(Math.random() * 1_000_000) + 1000
+    const res = await createNote(fixture, session, 'some text', [unknownId])
     expect(res.status).toBe(400)
   })
 
