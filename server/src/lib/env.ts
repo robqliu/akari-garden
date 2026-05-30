@@ -1,4 +1,4 @@
-import type { D1Database } from '@cloudflare/workers-types'
+import type { D1Database, KVNamespace } from '@cloudflare/workers-types'
 import type { AuthResult } from './db.js'
 
 // Values passed to Hono handlers via `c.env`. In production the
@@ -30,6 +30,10 @@ export type Bindings = {
   // SQLite database via Cloudflare D1. In dev, an adapter backed
   // by better-sqlite3
   DB: D1Database
+
+  // General runtime config. In prod, Cloudflare KV. In dev/tests,
+  // an in-memory adapter.
+  CONFIG_KV: KVNamespace
 }
 
 export type AppEnv = {

@@ -59,7 +59,28 @@ jobs:
 
       - run: pnpm install
 
+      # Full deploy sequence is documented in docs/operations.md,
+      # including manual recovery steps if something goes wrong here.
+      - name: Check for pending migrations
+        id: migrations
+        working-directory: server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          PENDING=$(pnpm dlx wrangler@latest d1 migrations list akari-garden-db --remote 2>&1 | grep -c "Not Applied" || true)
+          echo "pending=$PENDING" >> $GITHUB_OUTPUT
+
+      - name: Disable server (pending migrations require downtime)
+        if: steps.migrations.outputs.pending != '0'
+        working-directory: server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@latest kv key put --binding CONFIG_KV disable_server "1"
+
       - name: Apply D1 migrations
+        if: steps.migrations.outputs.pending != '0'
         working-directory: server
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -72,3 +93,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm dlx wrangler@latest deploy
+
+      - name: Re-enable server
+        if: always() && steps.migrations.outputs.pending != '0'
+        working-directory: server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@latest kv key put --binding CONFIG_KV disable_server "0"

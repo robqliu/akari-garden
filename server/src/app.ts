@@ -11,6 +11,11 @@ export function buildApp(fetchImpl?: typeof fetch): Hono<AppEnv> {
     origin: (_, c) => c.env.PUBLIC_WEB_URL,
     credentials: true,
   }))
+  app.use('*', async (c, next) => {
+    const disabled = await c.env.CONFIG_KV.get('disable_server')
+    if (disabled === '1') return c.json({ error: 'maintenance' }, 503)
+    await next()
+  })
   app.get('/health', (c) => c.json({ status: 'ok' }))
   app.route('/api/auth', buildAuthRouter(fetchImpl))
   app.route('/api/calendar', buildCalendarRouter(fetchImpl))

@@ -10,6 +10,12 @@
   },
   // Run `pnpm dlx wrangler d1 create akari-garden-db` once to create
   // the database and paste the returned database_id below.
+  "kv_namespaces": [
+    {
+      "binding": "CONFIG_KV",
+      "id": "e4072ad9a4064ca2badeb10a813fee24"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
