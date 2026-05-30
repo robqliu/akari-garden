@@ -2,6 +2,7 @@ import { expect } from 'vitest'
 
 import { buildApp } from './app.js'
 import { createSqliteD1 } from './lib/d1-adapter.js'
+import { createMemoryKV } from './lib/kv-adapter.js'
 import type { Bindings } from './lib/env.js'
 import { mockGoogleApi } from './routes/mock-google-api.js'
 
@@ -26,6 +27,7 @@ export class LocalAppFixture {
       PUBLIC_API_URL: 'http://localhost:3000',
       PUBLIC_WEB_URL: 'http://localhost:5173',
       DB: createSqliteD1(),
+      CONFIG_KV: createMemoryKV(),
     }
     this.app = buildApp(fetchMock)
   }
