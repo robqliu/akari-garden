@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { LocalAppFixture, SESSION_COOKIE } from '../local-app-fixture.js'
+import { LocalAppFixture, SESSION_COOKIE } from '../local/app-fixture.js'
 import { mockGoogleApi } from './mock-google-api.js'
 
 function mockCalendarApi(overrides: Partial<Record<string, () => Response>> = {}): typeof fetch {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildApp } from './app.js'
-import { createMemoryKV } from './lib/kv-adapter.js'
+import { createMemoryKV } from './local/kv-adapter.js'
 import type { Bindings } from './lib/env.js'
 
 const TEST_ENV: Partial<Bindings> = {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { LocalAppFixture, CSRF_COOKIE, SESSION_COOKIE, extractCookie } from '../local-app-fixture.js'
+import { LocalAppFixture, CSRF_COOKIE, SESSION_COOKIE, extractCookie } from '../local/app-fixture.js'
 import { mockGoogleApiTokenFailure } from './mock-google-api.js'
 
 describe('OAuth flow: /start -> /callback', () => {
