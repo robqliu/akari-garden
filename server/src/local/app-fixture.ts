@@ -1,10 +1,10 @@
 import { expect } from 'vitest'
 
-import { buildApp } from './app.js'
-import { createSqliteD1 } from './lib/d1-adapter.js'
-import { createMemoryKV } from './lib/kv-adapter.js'
-import type { Bindings } from './lib/env.js'
-import { mockGoogleApi } from './routes/mock-google-api.js'
+import { buildApp } from '../app.js'
+import { createSqliteD1 } from './d1-adapter.js'
+import { createMemoryKV } from './kv-adapter.js'
+import type { Bindings } from '../lib/env.js'
+import { mockGoogleApi } from '../routes/mock-google-api.js'
 
 export const CSRF_COOKIE = 'ag_csrf_guard'
 export const SESSION_COOKIE = 'ag_session'
