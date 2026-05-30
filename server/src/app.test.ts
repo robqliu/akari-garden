@@ -25,6 +25,7 @@ describe('Maintenance mode', () => {
     const app = buildApp()
 
     const paths = [...new Set(app.routes.map((r) => r.path))]
+    expect(paths.length).toBeGreaterThan(3)
     for (const path of paths) {
       const res = await app.request(path, {}, env)
       expect(res.status, `expected 503 on ${path}`).toBe(503)
