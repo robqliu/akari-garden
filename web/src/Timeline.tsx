@@ -1,43 +1,40 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './Timeline.css'
+import { API_URL } from './config'
 
-type CropId = 'ninjin' | 'satsumaimo' | 'melon' | 'tomato' | 'negi' | 'nasu'
+type CropId = 1 | 2 | 3 | 4 | 5 | 6
 
 const CROPS: { id: CropId; name: string; emoji: string }[] = [
-  { id: 'ninjin', name: 'にんじん', emoji: '🥕' },
-  { id: 'satsumaimo', name: 'さつまいも', emoji: '🍠' },
-  { id: 'melon', name: 'メロン', emoji: '🍈' },
-  { id: 'tomato', name: 'トマト', emoji: '🍅' },
-  { id: 'negi', name: 'ネギ', emoji: '🌿' },
-  { id: 'nasu', name: 'なす', emoji: '🍆' },
+  { id: 1, name: 'にんじん', emoji: '🥕' },
+  { id: 2, name: 'さつまいも', emoji: '🍠' },
+  { id: 3, name: 'メロン', emoji: '🍈' },
+  { id: 4, name: 'トマト', emoji: '🍅' },
+  { id: 5, name: 'ネギ', emoji: '🌿' },
+  { id: 6, name: 'なす', emoji: '🍆' },
 ]
 
 type Note = {
   id: string
   crops: CropId[]
   text: string
-  createdAt: Date
+  createdAt: string
 }
 
-const MOCK_NOTES: Note[] = [
-  { id: '1', crops: ['ninjin', 'nasu'], text: '水やりした。なすの葉が少し黄ばんでいる。', createdAt: new Date('2026-05-26T08:00:00') },
-  { id: '2', crops: ['tomato'], text: 'トマトに支柱を立てた。花が咲き始めた。', createdAt: new Date('2026-05-25T09:30:00') },
-  { id: '3', crops: ['melon'], text: 'メロンのつるが伸びてきた。', createdAt: new Date('2026-05-24T07:45:00') },
-  { id: '4', crops: ['ninjin', 'negi', 'satsumaimo'], text: '全体的に水やり。', createdAt: new Date('2026-05-23T08:15:00') },
-]
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+function formatDate(createdAt: string) {
+  return new Date(createdAt).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 type ComposeSheetProps = {
-  onSave: (crops: CropId[], text: string) => void
+  onSave: (crops: CropId[], text: string) => Promise<void>
   onClose: () => void
 }
 
 function ComposeSheet({ onSave, onClose }: ComposeSheetProps) {
   const [text, setText] = useState('')
   const [selectedCrops, setSelectedCrops] = useState<Set<CropId>>(new Set())
+  const [saving, setSaving] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState(false)
 
   const toggleCrop = (id: CropId) => {
     setSelectedCrops((prev) => {
@@ -46,11 +43,22 @@ function ComposeSheet({ onSave, onClose }: ComposeSheetProps) {
       else next.add(id)
       return next
     })
+    setValidationError(null)
   }
 
-  const handleSave = () => {
-    if (!text.trim() || selectedCrops.size === 0) return
-    onSave([...selectedCrops], text.trim())
+  const handleSave = async () => {
+    if (selectedCrops.size === 0) { setValidationError('作物を選んでください'); return }
+    if (!text.trim()) { setValidationError('メモを入力してください'); return }
+    setValidationError(null)
+    setSaving(true)
+    setSaveError(false)
+    try {
+      await onSave([...selectedCrops], text.trim())
+    } catch {
+      setSaveError(true)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -71,16 +79,18 @@ function ComposeSheet({ onSave, onClose }: ComposeSheetProps) {
           className="compose-sheet__textarea"
           placeholder="メモを入力..."
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value); setValidationError(null) }}
           rows={4}
           autoFocus
         />
+        {validationError && <p className="compose-sheet__error">{validationError}</p>}
+        {saveError && <p className="compose-sheet__error">保存に失敗しました。もう一度試してください。</p>}
         <button
           className="compose-sheet__save"
           onClick={handleSave}
-          disabled={!text.trim() || selectedCrops.size === 0}
+          disabled={saving}
         >
-          保存
+          {saving ? '保存中…' : '保存'}
         </button>
       </div>
     </div>
@@ -88,16 +98,68 @@ function ComposeSheet({ onSave, onClose }: ComposeSheetProps) {
 }
 
 export default function Timeline() {
-  const [notes, setNotes] = useState<Note[]>(MOCK_NOTES)
+  const [notes, setNotes] = useState<Note[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [filter, setFilter] = useState<CropId | null>(null)
   const [composing, setComposing] = useState(false)
 
-  const saveNote = (crops: CropId[], text: string) => {
-    setNotes([{ id: Date.now().toString(), crops, text, createdAt: new Date() }, ...notes])
+  const loadNotes = useCallback(async (crop: CropId | null, cursor: string | null) => {
+    const params = new URLSearchParams()
+    if (crop !== null) params.set('crop', String(crop))
+    if (cursor !== null) params.set('cursor', cursor)
+    const res = await fetch(`${API_URL}/api/notes?${params}`, { credentials: 'include' })
+    if (!res.ok) throw new Error(`${res.status}`)
+    return res.json() as Promise<{ notes: Note[]; nextCursor: string | null }>
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    loadNotes(filter, null)
+      .then(({ notes, nextCursor }) => {
+        if (cancelled) return
+        setNotes(notes)
+        setNextCursor(nextCursor)
+        setLoadError(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setNotes([])
+        setNextCursor(null)
+        setLoadError(true)
+      })
+    return () => { cancelled = true }
+  }, [filter, loadNotes])
+
+  const loadMore = async () => {
+    if (!nextCursor) return
+    setLoadingMore(true)
+    try {
+      const { notes: more, nextCursor: next } = await loadNotes(filter, nextCursor)
+      setNotes((prev) => [...prev, ...more])
+      setNextCursor(next)
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  const saveNote = async (crops: CropId[], text: string) => {
+    const res = await fetch(`${API_URL}/api/notes`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text, crops }),
+    })
+    if (!res.ok) throw new Error(`${res.status}`)
+    const note = await res.json() as Note
+    setNotes((prev) => [note, ...prev])
     setComposing(false)
   }
 
-  const filtered = filter ? notes.filter((n) => n.crops.includes(filter)) : notes
+  const filtered = notes
 
   return (
     <>
@@ -115,7 +177,10 @@ export default function Timeline() {
         </div>
 
         <div className="timeline__notes">
-          {filtered.length === 0 && <p className="timeline__empty">メモがありません</p>}
+          {loadError && notes.length === 0 && (
+            <p className="timeline__error">メモを読み込めませんでした。<button className="timeline__retry" onClick={() => setFilter(filter)}>再試行</button></p>
+          )}
+          {!loadError && filtered.length === 0 && <p className="timeline__empty">メモがありません</p>}
           {filtered.map((note) => (
             <div key={note.id} className="note-card">
               <div className="note-card__crops">
@@ -128,6 +193,14 @@ export default function Timeline() {
               <span className="note-card__date">{formatDate(note.createdAt)}</span>
             </div>
           ))}
+          {nextCursor && (
+            <button className="timeline__load-more" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? '読み込み中…' : 'もっと見る'}
+            </button>
+          )}
+          {loadError && notes.length > 0 && (
+            <p className="timeline__error">読み込みに失敗しました。<button className="timeline__retry" onClick={loadMore}>再試行</button></p>
+          )}
         </div>
       </div>
 
