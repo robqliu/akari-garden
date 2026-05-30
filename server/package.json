@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/dev-server.ts",
-    "dev:reset": "rm -f .dev.sqlite",
+    "dev:clean": "rm -f .dev.sqlite",
     "build": "tsc",
     "start": "node dist/dev-server.js",
     "lint": "eslint .",

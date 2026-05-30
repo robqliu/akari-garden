@@ -24,11 +24,11 @@ describe('Maintenance mode', () => {
     const env: Partial<Bindings> = { PUBLIC_WEB_URL: 'http://localhost:5173', CONFIG_KV: configKv }
     const app = buildApp()
 
-    const health = await app.request('/health', {}, env)
-    expect(health.status).toBe(503)
-
-    const notes = await app.request('/api/notes', {}, env)
-    expect(notes.status).toBe(503)
+    const paths = [...new Set(app.routes.map((r) => r.path))]
+    for (const path of paths) {
+      const res = await app.request(path, {}, env)
+      expect(res.status, `expected 503 on ${path}`).toBe(503)
+    }
   })
 
   it('serves normally when disable_server is set to 0', async () => {

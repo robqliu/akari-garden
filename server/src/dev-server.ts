@@ -14,6 +14,8 @@ const devEnv: Bindings = {
   PUBLIC_API_URL: process.env.PUBLIC_API_URL ?? `http://localhost:${port}`,
   PUBLIC_WEB_URL: process.env.PUBLIC_WEB_URL ?? 'http://localhost:5173',
   DB: createSqliteD1('.dev.sqlite'),
+  // In prod, Cloudflare injects one binding per KV namespace declared in
+  // wrangler.jsonc. Each namespace is a separate field on env.
   CONFIG_KV: createMemoryKV(),
 }
 
