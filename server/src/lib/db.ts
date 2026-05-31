@@ -1,4 +1,4 @@
-import type { Context, MiddlewareHandler } from 'hono'
+import type { Context } from 'hono'
 import { getSignedCookie } from 'hono/cookie'
 
 import type { AppEnv, Bindings } from './env.js'
@@ -79,15 +79,6 @@ export async function getAuthenticatedUserWithId(
   const user = await getUser(c.env, session.userId)
   if (!user) return null
   return { user, userId: session.userId }
-}
-
-export function requireAuth(): MiddlewareHandler<AppEnv> {
-  return async (c, next) => {
-    const auth = await getAuthenticatedUserWithId(c)
-    if (!auth) return c.json({ error: 'not_authenticated' }, 401)
-    c.set('auth', auth)
-    await next()
-  }
 }
 
 export async function getSessionId(c: Context<AppEnv>): Promise<string | null> {

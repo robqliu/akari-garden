@@ -4,7 +4,7 @@ import { API_URL } from './config'
 
 type CropId = 1 | 2 | 3 | 4 | 5 | 6
 
-const CROPS: { id: CropId; name: string; emoji: string }[] = [
+const SORTED_CROPS: { id: CropId; name: string; emoji: string }[] = [
   { id: 1, name: 'にんじん', emoji: '🥕' },
   { id: 2, name: 'さつまいも', emoji: '🍠' },
   { id: 3, name: 'メロン', emoji: '🍈' },
@@ -67,7 +67,7 @@ function ComposeSheet({ onSave, onClose }: ComposeSheetProps) {
     <div className="compose-overlay" onClick={onClose}>
       <div className="compose-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="compose-sheet__crop-tags">
-          {CROPS.map((c) => (
+          {SORTED_CROPS.map((c) => (
             <button
               key={c.id}
               className={`tag-btn ${selectedCrops.has(c.id) ? 'tag-btn--selected' : ''}`}
@@ -165,7 +165,7 @@ export default function Timeline() {
     <>
       <div className="timeline">
         <div className="timeline__filters">
-          {CROPS.map((c) => (
+          {SORTED_CROPS.map((c) => (
             <button
               key={c.id}
               className={`filter-btn ${filter === c.id ? 'filter-btn--active' : ''}`}
@@ -187,7 +187,7 @@ export default function Timeline() {
             <div key={note.id} className="note-card">
               <div className="note-card__crops">
                 {note.crops.map((cid) => {
-                  const crop = CROPS.find((c) => c.id === cid)!
+                  const crop = SORTED_CROPS.find((c) => c.id === cid)!
                   return <span key={cid} className="note-card__crop-tag">{crop.emoji} {crop.name}</span>
                 })}
               </div>

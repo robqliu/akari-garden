@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 
 import type { AppEnv } from '../lib/env.js'
-import { requireAuth } from '../lib/db.js'
+import { requireAuth } from '../lib/middleware.js'
 
 const PAGE_SIZE = 20
 const MAX_TEXT_LENGTH = 1000
@@ -16,7 +16,7 @@ export type NoteResponse = {
   id: string
   text: string
   crops: number[]
-  createdAt: string
+  createdAt: string  // ISO 8601 — JSON has no Date type, formatting is the caller's responsibility
 }
 
 type GetNotesResponse = {
@@ -24,10 +24,9 @@ type GetNotesResponse = {
   nextCursor: string | null
 }
 
-// unknown fields so we can validate shape before narrowing types
-type RawCreateNoteBody = {
-  text?: unknown
-  crops?: unknown
+type CreateNoteBody = {
+  text?: string
+  crops?: number[]
 }
 
 export function buildNotesRouter(): Hono<AppEnv> {
@@ -52,7 +51,7 @@ export function buildNotesRouter(): Hono<AppEnv> {
 
   router.post('/notes', async (c) => {
     const { userId } = c.get('auth')
-    const body = await c.req.json<RawCreateNoteBody>()
+    const body = await c.req.json<CreateNoteBody>()
 
     const validation = validateCreateNote(body)
     if (validation.error) return c.json({ error: 'validation_failed', detail: validation.error }, 400)
@@ -61,7 +60,8 @@ export function buildNotesRouter(): Hono<AppEnv> {
     const validCropIds = await db.fetchValidCropIds(c.env.DB, crops)
     const invalidCrop = crops.find((id) => !validCropIds.has(id))
     if (invalidCrop !== undefined) {
-      return c.json({ error: 'validation_failed', detail: `invalid crop id: ${invalidCrop}` }, 400)
+      const validList = [...validCropIds].sort().join(', ')
+      return c.json({ error: 'validation_failed', detail: `invalid crop id: ${invalidCrop} (valid ids: ${validList})` }, 400)
     }
 
     const id = crypto.randomUUID()
@@ -121,9 +121,15 @@ type NoteRow = { id: string; text: string; created_at: string }
 type CropRow = { note_id: string; crop_id: number }
 type Cursor = { createdAt: string; id: string }
 
+type NotesDb = {
+  fetchNotePage(dbConn: AppEnv['Bindings']['DB'], userId: string, cropId: number | null, cursor: Cursor | null): Promise<NoteRow[]>
+  fetchCropsForNotes(dbConn: AppEnv['Bindings']['DB'], noteIds: string[]): Promise<CropRow[]>
+  fetchValidCropIds(dbConn: AppEnv['Bindings']['DB'], cropIds: number[]): Promise<Set<number>>
+}
+
 // Fetches PAGE_SIZE + 1 rows so the caller can detect whether a next page
 // exists without a separate COUNT query.
-const db = {
+const db: NotesDb = {
   async fetchNotePage(
     dbConn: AppEnv['Bindings']['DB'],
     userId: string,
@@ -221,20 +227,11 @@ function decodeCursor(token: string | null): Cursor | null {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-function validateCreateNote(body: RawCreateNoteBody):
+function validateCreateNote(body: CreateNoteBody):
   | { text: string; crops: number[]; error?: undefined }
   | { error: string } {
-  if (typeof body.text !== 'string' || body.text.trim() === '') {
-    return { error: 'text is required' }
-  }
-  if (body.text.length > MAX_TEXT_LENGTH) {
-    return { error: `text must be ${MAX_TEXT_LENGTH} characters or fewer` }
-  }
-  if (!Array.isArray(body.crops) || body.crops.length === 0) {
-    return { error: 'crops must be a non-empty array' }
-  }
-  if (body.crops.some((c) => typeof c !== 'number' || !Number.isInteger(c) || c <= 0)) {
-    return { error: 'each crop must be a positive integer' }
-  }
-  return { text: body.text.trim(), crops: body.crops as number[] }
+  if (!body.text?.trim()) return { error: 'text is required' }
+  if (body.text.length > MAX_TEXT_LENGTH) return { error: `text must be ${MAX_TEXT_LENGTH} characters or fewer` }
+  if (!body.crops?.length) return { error: 'crops must be a non-empty array' }
+  return { text: body.text.trim(), crops: body.crops }
 }

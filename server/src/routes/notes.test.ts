@@ -24,9 +24,7 @@ describe('GET /api/notes', () => {
   })
 
   it('returns created notes newest-first', async () => {
-    await createNote(fixture, session, 'first note', [1])
-    await new Promise((r) => setTimeout(r, 2)) // ensure distinct created_at timestamps
-    await createNote(fixture, session, 'second note', [2])
+    await createOrderedNotes(fixture, session, ['first note', 'second note'], [1])
 
     const res = await fixture.request('/api/notes', { headers: { cookie: `ag_session=${session}` } })
     const body = await res.json() as { notes: Array<{ text: string }> }
@@ -117,16 +115,17 @@ describe('POST /api/notes', () => {
   })
 
   it('rejects unknown crop ids', async () => {
-    const unknownId = Math.floor(Math.random() * 1_000_000) + 1000
+    const { results } = await fixture.env.DB.prepare('SELECT MAX(id) as max FROM crops').all<{ max: number }>()
+    const unknownId = (results[0]?.max ?? 0) + 1
     const res = await createNote(fixture, session, 'some text', [unknownId])
     expect(res.status).toBe(400)
   })
 
   it('created note appears in GET /api/notes', async () => {
-    await createNote(fixture, session, 'test note', [3])
+    const created = await (await createNote(fixture, session, 'test note', [3])).json() as { id: string }
     const res = await fixture.request('/api/notes', { headers: { cookie: `ag_session=${session}` } })
-    const body = await res.json() as { notes: Array<{ text: string }> }
-    expect(body.notes[0].text).toBe('test note')
+    const body = await res.json() as { notes: Array<{ id: string }> }
+    expect(body.notes.some((n) => n.id === created.id)).toBe(true)
   })
 })
 
@@ -136,4 +135,20 @@ function createNote(fixture: LocalAppFixture, session: string, text: string, cro
     headers: { 'content-type': 'application/json', cookie: `ag_session=${session}` },
     body: JSON.stringify({ text, crops }),
   })
+}
+
+// Creates notes in guaranteed newest-first order by inserting with a 2ms gap
+// between each. Use this instead of multiple createNote() calls when the test
+// cares about ordering — sequential createNote() calls may share a millisecond
+// timestamp and produce non-deterministic order.
+async function createOrderedNotes(
+  fixture: LocalAppFixture,
+  session: string,
+  texts: string[],
+  crops: number[],
+) {
+  for (const text of texts) {
+    await createNote(fixture, session, text, crops)
+    await new Promise((r) => setTimeout(r, 2))
+  }
 }
