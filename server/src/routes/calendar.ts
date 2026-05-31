@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 
 import type { AppEnv, Bindings } from '../lib/env.js'
-import { getAuthenticatedUserWithId, putUser } from '../lib/db.js'
+import { putUser } from '../lib/db.js'
+import { requireAuth } from '../lib/auth.js'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_CALENDARS_URL = 'https://www.googleapis.com/calendar/v3/calendars'
@@ -9,12 +10,7 @@ const GOOGLE_CALENDARS_URL = 'https://www.googleapis.com/calendar/v3/calendars'
 export function buildCalendarRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
   const router = new Hono<AppEnv>()
 
-  router.use(async (c, next) => {
-    const auth = await getAuthenticatedUserWithId(c)
-    if (!auth) return c.json({ error: 'not_authenticated' }, 401)
-    c.set('auth', auth)
-    await next()
-  })
+  router.use(requireAuth())
 
   router.get('/registered', async (c) => {
     const { user } = c.get('auth')
