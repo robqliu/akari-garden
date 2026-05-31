@@ -11,7 +11,7 @@ const SORTED_CROPS: { id: CropId; name: string; emoji: string }[] = [
   { id: 4, name: 'トマト', emoji: '🍅' },
   { id: 5, name: 'ネギ', emoji: '🌿' },
   { id: 6, name: 'なす', emoji: '🍆' },
-].sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+].sort((a, b) => a.name.localeCompare(b.name, 'ja')) as { id: CropId; name: string; emoji: string }[]
 
 // TODO: duplicate of NoteResponse in server/src/routes/notes.ts — move to a
 // shared packages/types package so FE and BE can't drift apart.

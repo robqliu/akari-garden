@@ -32,8 +32,11 @@ describe('GET /api/notes', () => {
   })
 
   it('filters by crop', async () => {
+    // delays ensure distinct created_at timestamps so order is deterministic
     await createNote(fixture, session, 'carrot note', [1])
+    await new Promise((r) => setTimeout(r, 2))
     await createNote(fixture, session, 'tomato note', [4])
+    await new Promise((r) => setTimeout(r, 2))
     await createNote(fixture, session, 'mixed note', [1, 4])
 
     const res = await fixture.request('/api/notes?crop=1', { headers: { cookie: `ag_session=${session}` } })
@@ -99,7 +102,7 @@ describe('POST /api/notes', () => {
     expect(res.status).toBe(201)
     const body = await res.json() as { id: string; text: string; crops: number[]; createdAt: string }
     expect(body.text).toBe('watered the carrots')
-    expect(body.crops.sort()).toEqual([1, 2])
+    expect(new Set(body.crops)).toEqual(new Set([1, 2]))
     expect(body.id).toBeTruthy()
     expect(body.createdAt).toBeTruthy()
   })

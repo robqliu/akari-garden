@@ -1,17 +1,18 @@
 import { Hono } from 'hono'
+import { sValidator } from '@hono/standard-validator'
+import { z } from 'zod'
 
 import type { AppEnv } from '../lib/env.js'
-import { requireAuth } from '../lib/middleware.js'
+import { requireAuth } from '../lib/auth.js'
 
 const PAGE_SIZE = 20
 const MAX_TEXT_LENGTH = 1000
 
-// Pagination uses a base64-encoded cursor containing (createdAt, id).
-// createdAt is the primary sort key so the next-page WHERE clause needs it:
-//   WHERE (created_at < ?) OR (created_at = ? AND id > ?)
-// id is the tiebreaker for notes created in the same millisecond.
-// base64 keeps the token opaque — callers must treat it as an arbitrary
-// string, not something to construct themselves.
+const createNoteSchema = z.object({
+  text: z.string().trim().min(1, 'text is required').max(MAX_TEXT_LENGTH, `text must be ${MAX_TEXT_LENGTH} characters or fewer`),
+  crops: z.array(z.number().int().positive()).min(1, 'crops must be a non-empty array'),
+})
+
 export type NoteResponse = {
   id: string
   text: string
@@ -22,11 +23,6 @@ export type NoteResponse = {
 type GetNotesResponse = {
   notes: NoteResponse[]
   nextCursor: string | null
-}
-
-type CreateNoteBody = {
-  text?: string
-  crops?: number[]
 }
 
 export function buildNotesRouter(): Hono<AppEnv> {
@@ -49,34 +45,31 @@ export function buildNotesRouter(): Hono<AppEnv> {
     return c.json<GetNotesResponse>(notes)
   })
 
-  router.post('/notes', async (c) => {
-    const { userId } = c.get('auth')
-    const body = await c.req.json<CreateNoteBody>()
+  router.post(
+    '/notes',
+    sValidator('json', createNoteSchema, (result, c) => {
+      if (!result.success) {
+        const detail = result.error[0]?.message ?? 'invalid request'
+        return c.json({ error: 'validation_failed', detail }, 400)
+      }
+    }),
+    async (c) => {
+      const { userId } = c.get('auth')
+      const { text, crops } = c.req.valid('json')
 
-    const validation = validateCreateNote(body)
-    if (validation.error) return c.json({ error: 'validation_failed', detail: validation.error }, 400)
-    const { text, crops } = validation
+      const validCropIds = await db.fetchValidCropIds(c.env.DB, crops)
+      const invalidCrop = crops.find((id) => !validCropIds.has(id))
+      if (invalidCrop !== undefined) {
+        const validList = [...validCropIds].sort().join(', ')
+        return c.json({ error: 'validation_failed', detail: `invalid crop id: ${invalidCrop} (valid ids: ${validList})` }, 400)
+      }
 
-    const validCropIds = await db.fetchValidCropIds(c.env.DB, crops)
-    const invalidCrop = crops.find((id) => !validCropIds.has(id))
-    if (invalidCrop !== undefined) {
-      const validList = [...validCropIds].sort().join(', ')
-      return c.json({ error: 'validation_failed', detail: `invalid crop id: ${invalidCrop} (valid ids: ${validList})` }, 400)
-    }
-
-    const id = crypto.randomUUID()
-    const createdAt = new Date().toISOString()
-
-    await c.env.DB.batch([
-      c.env.DB.prepare('INSERT INTO notes (id, text, created_by, created_at) VALUES (?, ?, ?, ?)')
-        .bind(id, text, userId, createdAt),
-      ...crops.map((cropId) =>
-        c.env.DB.prepare('INSERT INTO note_crops (note_id, crop_id) VALUES (?, ?)').bind(id, cropId),
-      ),
-    ])
-
-    return c.json<NoteResponse>({ id, text, crops, createdAt }, 201)
-  })
+      const id = crypto.randomUUID()
+      const createdAt = new Date().toISOString()
+      await db.insertNote(c.env.DB, { id, text, userId, createdAt, crops })
+      return c.json<NoteResponse>({ id, text, crops, createdAt }, 201)
+    },
+  )
 
   return router
 }
@@ -121,15 +114,28 @@ type NoteRow = { id: string; text: string; created_at: string }
 type CropRow = { note_id: string; crop_id: number }
 type Cursor = { createdAt: string; id: string }
 
+type NewNote = { id: string; text: string; userId: string; createdAt: string; crops: number[] }
+
 type NotesDb = {
+  insertNote(dbConn: AppEnv['Bindings']['DB'], note: NewNote): Promise<void>
   fetchNotePage(dbConn: AppEnv['Bindings']['DB'], userId: string, cropId: number | null, cursor: Cursor | null): Promise<NoteRow[]>
   fetchCropsForNotes(dbConn: AppEnv['Bindings']['DB'], noteIds: string[]): Promise<CropRow[]>
   fetchValidCropIds(dbConn: AppEnv['Bindings']['DB'], cropIds: number[]): Promise<Set<number>>
 }
 
-// Fetches PAGE_SIZE + 1 rows so the caller can detect whether a next page
-// exists without a separate COUNT query.
 const db: NotesDb = {
+  async insertNote(dbConn, { id, text, userId, createdAt, crops }) {
+    await dbConn.batch([
+      dbConn.prepare('INSERT INTO notes (id, text, created_by, created_at) VALUES (?, ?, ?, ?)')
+        .bind(id, text, userId, createdAt),
+      ...crops.map((cropId) =>
+        dbConn.prepare('INSERT INTO note_crops (note_id, crop_id) VALUES (?, ?)').bind(id, cropId),
+      ),
+    ])
+  },
+
+  // Fetches PAGE_SIZE + 1 rows so the caller can detect whether a next page
+  // exists without a separate COUNT query.
   async fetchNotePage(
     dbConn: AppEnv['Bindings']['DB'],
     userId: string,
@@ -208,6 +214,11 @@ function groupCropsByNoteId(rows: CropRow[]): Record<string, number[]> {
 }
 
 // ── Cursor encoding ───────────────────────────────────────────────────────────
+//
+// Cursor is a base64-encoded (createdAt, id) pair. createdAt is the primary
+// sort key; id breaks ties for notes created in the same millisecond. base64
+// keeps the token opaque — callers must treat it as an arbitrary string, not
+// something to construct themselves. See docs/arch/notes-cursor-pagination.md.
 
 function encodeCursor(createdAt: string, id: string): string {
   return btoa(`${createdAt}|${id}`)
@@ -223,15 +234,4 @@ function decodeCursor(token: string | null): Cursor | null {
   } catch {
     return null
   }
-}
-
-// ── Validation ────────────────────────────────────────────────────────────────
-
-function validateCreateNote(body: CreateNoteBody):
-  | { text: string; crops: number[]; error?: undefined }
-  | { error: string } {
-  if (!body.text?.trim()) return { error: 'text is required' }
-  if (body.text.length > MAX_TEXT_LENGTH) return { error: `text must be ${MAX_TEXT_LENGTH} characters or fewer` }
-  if (!body.crops?.length) return { error: 'crops must be a non-empty array' }
-  return { text: body.text.trim(), crops: body.crops }
 }

@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.2",
+    "@hono/standard-validator": "^0.2.2",
     "better-sqlite3": "^12.10.0",
-    "hono": "^4.12.18"
+    "hono": "^4.12.18",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260522.1",
