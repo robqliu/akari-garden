@@ -38,3 +38,68 @@
 .bottom-nav__item--active {
   color: #2d5a27;
 }
+
+.bottom-nav__item--logout {
+  flex: 0 0 auto;
+  padding: 0 1rem;
+  color: #bbb;
+  font-size: 0.7rem;
+}
+
+.bottom-nav__item--logout:hover {
+  color: #999;
+}
+
+.auth-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 2.5rem 2rem;
+  border: 1px solid #e0dbd0;
+  border-radius: 12px;
+  background: white;
+  min-width: 240px;
+}
+
+.auth-card__app-name {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2d5a27;
+}
+
+.auth-card__status {
+  margin: 0;
+  color: #888;
+  font-size: 0.875rem;
+}
+
+.auth-card__error {
+  margin: 0;
+  color: #c00;
+  font-size: 0.875rem;
+}
+
+.auth-card__sign-in {
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  background: #1a73e8;
+  color: white;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auth-card__sign-in:hover {
+  background: #1557b0;
+}
