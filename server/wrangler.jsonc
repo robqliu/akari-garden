@@ -28,7 +28,7 @@
   // SESSION_SIGNING_KEY) are set via `wrangler secret put`.
   "vars": {
     "GOOGLE_CLIENT_ID": "737249350314-0qha9ouuj39vcnkkfpd05e2n9uubq7mu.apps.googleusercontent.com",
-    "PUBLIC_API_URL": "https://akari-garden-api.robqliu.workers.dev",
+    "PUBLIC_API_URL": "https://akari-garden.pages.dev",
     "PUBLIC_WEB_URL": "https://akari-garden.pages.dev"
   }
 }
