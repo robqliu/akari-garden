@@ -4,6 +4,7 @@ export type DbConn = AppEnv['Bindings']['DB']
 
 export type NoteRow = { id: string; text: string; created_at: string }
 export type CropRow = { note_id: string; crop_id: number }
+export type NoteCursor = { createdAt: string; id: string }
 
 export type NewNote = {
   id: string
@@ -89,8 +90,6 @@ export const notesDb = {
     return new Set(rows.map((r) => r.id))
   },
 }
-
-export type NoteCursor = { createdAt: string; id: string }
 
 export function groupCropsByNoteId(rows: CropRow[]): Record<string, number[]> {
   const map: Record<string, number[]> = {}

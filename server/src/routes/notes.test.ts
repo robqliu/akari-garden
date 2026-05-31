@@ -24,7 +24,10 @@ describe('GET /api/notes', () => {
   })
 
   it('returns created notes newest-first', async () => {
-    await createOrderedNotes(fixture, session, ['first note', 'second note'], [1])
+    await createOrderedNotes(fixture, session, [
+      { text: 'first note', crops: [1] },
+      { text: 'second note', crops: [1] },
+    ])
 
     const res = await fixture.request('/api/notes', { headers: { cookie: `ag_session=${session}` } })
     const body = await res.json() as { notes: Array<{ text: string }> }
@@ -32,12 +35,11 @@ describe('GET /api/notes', () => {
   })
 
   it('filters by crop', async () => {
-    // delays ensure distinct created_at timestamps so order is deterministic
-    await createNote(fixture, session, 'carrot note', [1])
-    await new Promise((r) => setTimeout(r, 2))
-    await createNote(fixture, session, 'tomato note', [4])
-    await new Promise((r) => setTimeout(r, 2))
-    await createNote(fixture, session, 'mixed note', [1, 4])
+    await createOrderedNotes(fixture, session, [
+      { text: 'carrot note', crops: [1] },
+      { text: 'tomato note', crops: [4] },
+      { text: 'mixed note', crops: [1, 4] },
+    ])
 
     const res = await fixture.request('/api/notes?crop=1', { headers: { cookie: `ag_session=${session}` } })
     const body = await res.json() as { notes: Array<{ text: string }> }
@@ -147,10 +149,9 @@ function createNote(fixture: LocalAppFixture, session: string, text: string, cro
 async function createOrderedNotes(
   fixture: LocalAppFixture,
   session: string,
-  texts: string[],
-  crops: number[],
+  notes: Array<{ text: string; crops: number[] }>,
 ) {
-  for (const text of texts) {
+  for (const { text, crops } of notes) {
     await createNote(fixture, session, text, crops)
     await new Promise((r) => setTimeout(r, 2))
   }

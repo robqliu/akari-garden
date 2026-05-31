@@ -4,14 +4,14 @@ import { API_URL } from './config'
 
 type CropId = 1 | 2 | 3 | 4 | 5 | 6
 
-const SORTED_CROPS: { id: CropId; name: string; emoji: string }[] = [
-  { id: 1, name: 'にんじん', emoji: '🥕' },
-  { id: 2, name: 'さつまいも', emoji: '🍠' },
-  { id: 3, name: 'メロン', emoji: '🍈' },
-  { id: 4, name: 'トマト', emoji: '🍅' },
-  { id: 5, name: 'ネギ', emoji: '🌿' },
-  { id: 6, name: 'なす', emoji: '🍆' },
-].sort((a, b) => a.name.localeCompare(b.name, 'ja')) as { id: CropId; name: string; emoji: string }[]
+const SORTED_CROPS = [
+  { id: 1 as CropId, name: 'にんじん', emoji: '🥕' },
+  { id: 2 as CropId, name: 'さつまいも', emoji: '🍠' },
+  { id: 3 as CropId, name: 'メロン', emoji: '🍈' },
+  { id: 4 as CropId, name: 'トマト', emoji: '🍅' },
+  { id: 5 as CropId, name: 'ネギ', emoji: '🌿' },
+  { id: 6 as CropId, name: 'なす', emoji: '🍆' },
+].sort((a, b) => a.name.localeCompare(b.name, 'ja'))
 
 // TODO: duplicate of NoteResponse in server/src/routes/notes.ts — move to a
 // shared packages/types package so FE and BE can't drift apart.

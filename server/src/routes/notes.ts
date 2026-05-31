@@ -11,7 +11,10 @@ const PAGE_SIZE = 20
 const MAX_TEXT_LENGTH = 1000
 
 const createNoteSchema = z.object({
-  text: z.string().trim().min(1, 'text is required').max(MAX_TEXT_LENGTH, `text must be ${MAX_TEXT_LENGTH} characters or fewer`),
+  text: z.string()
+    .trim()
+    .min(1, 'text is required')
+    .max(MAX_TEXT_LENGTH, `text must be ${MAX_TEXT_LENGTH} characters or fewer`),
   crops: z.array(z.number().int().positive()).min(1, 'crops must be a non-empty array'),
 })
 
