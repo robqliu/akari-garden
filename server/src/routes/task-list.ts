@@ -5,16 +5,16 @@ import { putUser } from '../lib/db.js'
 import { requireAuth } from '../lib/auth.js'
 import { refreshAccessToken } from '../lib/google.js'
 
-const GOOGLE_CALENDARS_URL = 'https://www.googleapis.com/calendar/v3/calendars'
+const GOOGLE_TASK_LISTS_URL = 'https://tasks.googleapis.com/tasks/v1/users/@me/lists'
 
-export function buildCalendarRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
+export function buildTaskListRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
   const router = new Hono<AppEnv>()
 
   router.use(requireAuth())
 
   router.get('/', async (c) => {
     const { user } = c.get('auth')
-    return c.json({ id: user.calendarId ?? null })
+    return c.json({ id: user.taskListId ?? null })
   })
 
   router.post('/', async (c) => {
@@ -25,33 +25,33 @@ export function buildCalendarRouter(fetchImpl: typeof fetch = fetch): Hono<AppEn
     const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
     if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
-    const calendar = await createGoogleCalendar(accessToken, name, fetchImpl)
-    if (!calendar) return c.json({ error: 'google_unavailable' }, 502)
+    const taskList = await createGoogleTaskList(accessToken, name, fetchImpl)
+    if (!taskList) return c.json({ error: 'google_unavailable' }, 502)
 
-    user.calendarId = calendar.id
+    user.taskListId = taskList.id
     await putUser(c.env, userId, user)
 
-    return c.json({ id: calendar.id })
+    return c.json({ id: taskList.id })
   })
 
   return router
 }
 
-async function createGoogleCalendar(
+async function createGoogleTaskList(
   accessToken: string,
   name: string,
   fetchImpl: typeof fetch,
 ): Promise<{ id: string } | null> {
-  const res = await fetchImpl(GOOGLE_CALENDARS_URL, {
+  const res = await fetchImpl(GOOGLE_TASK_LISTS_URL, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${accessToken}`,
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ summary: name }),
+    body: JSON.stringify({ title: name }),
   })
   if (!res.ok) {
-    console.error(`Google calendar create failed: ${res.status}`, await res.text())
+    console.error(`Google task list create failed: ${res.status}`, await res.text())
     return null
   }
   return { id: ((await res.json()) as { id: string }).id }
