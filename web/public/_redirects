@@ -1,0 +1,2 @@
+/api/* https://akari-garden-api.robqliu.workers.dev/api/:splat 200
+/health https://akari-garden-api.robqliu.workers.dev/health 200
