@@ -1,0 +1,227 @@
+.farm-layout {
+  padding: 1rem;
+}
+
+.farm-layout__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  color: #1e293b;
+}
+
+.farm-layout__title small {
+  font-weight: 400;
+  color: #94a3b8;
+  margin-left: 0.4rem;
+}
+
+/* ── Plot container ── */
+
+.farm-plot {
+  position: relative;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 2 / 3;
+  padding: 2rem 1rem 1rem 2rem;
+  container-type: inline-size;
+}
+
+.farm-plot__path-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.75rem;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5cqw;
+  font-weight: 700;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.farm-plot__path-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1.75rem;
+  bottom: 0;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5cqw;
+  font-weight: 700;
+  color: #94a3b8;
+  font-style: italic;
+  writing-mode: vertical-rl;
+}
+
+.farm-plot__beds {
+  display: flex;
+  flex-direction: column;
+  gap: 1cqw;
+  height: 100%;
+}
+
+.farm-plot__lower {
+  display: flex;
+  gap: 1cqw;
+  flex: 1;
+  min-height: 0;
+}
+
+.farm-plot__compass {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.75rem;
+  font-size: 2.5cqw;
+  font-weight: 700;
+  color: #cbd5e1;
+  font-style: italic;
+}
+
+/* ── Beds ── */
+
+.farm-bed {
+  position: relative;
+  border-radius: 8px;
+  border: 1px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8cqw;
+  padding: 1cqw;
+  text-align: center;
+}
+
+.farm-bed__size {
+  position: absolute;
+  top: -1.8cqw;
+  right: 0;
+  font-size: 2.2cqw;
+  font-weight: 700;
+}
+
+.farm-bed__name {
+  font-size: 4cqw;
+  font-weight: 700;
+}
+
+.farm-bed__name small {
+  font-weight: 400;
+  font-size: 3cqw;
+  opacity: 0.7;
+  display: block;
+}
+
+/* ── Dots ── */
+
+.farm-bed__dots {
+  display: flex;
+  align-items: center;
+}
+
+.farm-bed__dots--h {
+  flex-direction: row;
+  justify-content: space-evenly;
+  width: 100%;
+}
+
+.farm-bed__dots--v {
+  flex-direction: column;
+  justify-content: space-evenly;
+  flex: 1;
+  align-self: stretch;
+}
+
+.farm-bed__dot {
+  font-size: 4.5cqw;
+  line-height: 1;
+}
+
+/* ── Melon beds ── */
+
+.farm-bed--melon {
+  background: #f0fdf4;
+  border-color: #22c55e;
+  color: #166534;
+  justify-content: flex-start;
+}
+
+.farm-bed--melon .farm-bed__name {
+  color: #166534;
+}
+
+.farm-bed--melon .farm-bed__dot {
+  color: #16a34a;
+}
+
+.farm-bed--melon .farm-bed__size {
+  color: #16a34a;
+}
+
+/* ── Split bed (tomato + eggplant) ── */
+
+.farm-bed--split {
+  flex: 2;
+  border-color: #e2e8f0;
+  background: white;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.farm-bed--split > .farm-bed__size {
+  color: #64748b;
+  background: white;
+  padding: 0 2px;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.farm-bed--tomato,
+.farm-bed--eggplant {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  justify-content: flex-start;
+}
+
+.farm-bed--tomato {
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff5f5;
+  color: #b91c1c;
+}
+
+.farm-bed--tomato .farm-bed__dot { color: #b91c1c; }
+
+.farm-bed--eggplant {
+  background: #faf5ff;
+  color: #7e22ce;
+}
+
+.farm-bed--eggplant .farm-bed__dot { color: #7e22ce; }
+
+/* ── Potato bed ── */
+
+.farm-bed--potato {
+  flex: 1;
+  background: #fff7ed;
+  border-color: #f97316;
+  color: #9a3412;
+  justify-content: flex-start;
+}
+
+.farm-bed--potato .farm-bed__size { color: #ea580c; }
+.farm-bed--potato .farm-bed__dot  { color: #ea580c; }

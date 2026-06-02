@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import CalendarSetup from './CalendarSetup'
+import FarmLayout from './FarmLayout'
 import Timeline from './Timeline'
 import Weather from './Weather'
 import { API_URL } from './config'
 import './App.css'
 
-type View = 'timeline' | 'calendar'
+type View = 'timeline' | 'calendar' | 'layout'
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error'
 
 function App() {
@@ -61,6 +62,7 @@ function App() {
     <div className="app">
       <div className="app__content">
         {view === 'timeline' && <Timeline />}
+        {view === 'layout' && <FarmLayout />}
         {view === 'calendar' && (
           <div style={{ fontFamily: 'system-ui', padding: '2rem' }}>
             <p style={{ color: '#888' }}>カレンダー（近日公開）</p>
@@ -86,6 +88,13 @@ function App() {
         >
           <span>📅</span>
           <span>カレンダー</span>
+        </button>
+        <button
+          className={`bottom-nav__item ${view === 'layout' ? 'bottom-nav__item--active' : ''}`}
+          onClick={() => setView('layout')}
+        >
+          <span>🗺️</span>
+          <span>図面</span>
         </button>
         <button className="bottom-nav__item bottom-nav__item--logout" onClick={handleLogout}>
           <span>↩</span>
