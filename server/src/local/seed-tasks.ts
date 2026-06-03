@@ -44,12 +44,12 @@ async function signCookieValue(value: string, secret: string): Promise<string> {
   return encodeURIComponent(`${value}.${signature}`)
 }
 
-async function createTask(sessionCookie: string, title: string, dueOffset: number | null): Promise<void> {
-  const due = dueOffset !== null ? Temporal.Now.plainDateISO().add({ days: dueOffset }).toString() : undefined
+async function createTask(sessionCookie: string, title: string, dueOffset: number): Promise<void> {
+  const due = Temporal.Now.plainDateISO().add({ days: dueOffset }).toString()
   const res = await fetch(`${API_BASE}/api/tasks`, {
     method: 'POST',
     headers: { cookie: `${SESSION_COOKIE}=${sessionCookie}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ title, ...(due ? { due } : {}) }),
+    body: JSON.stringify({ title, due }),
   })
   if (res.status === 401) throw new Error('Session invalid — sign in again.')
   if (res.status === 400) {
@@ -58,7 +58,7 @@ async function createTask(sessionCookie: string, title: string, dueOffset: numbe
     throw new Error(`Bad request: ${error}`)
   }
   if (!res.ok) throw new Error(`Create task failed (${res.status}): ${await res.text()}`)
-  console.log(`  ✓ "${title}"${due ? ` — ${due}` : ''}`)
+  console.log(`  ✓ "${title}" — ${due}`)
 }
 
 async function main() {
@@ -69,7 +69,7 @@ async function main() {
   const signingKey = process.env.SESSION_SIGNING_KEY ?? 'dev-only-signing-key'
   const sessionCookie = await signCookieValue(row.id, signingKey)
 
-  const tasks: Array<{ title: string; dueOffset: number | null }> = [
+  const tasks: Array<{ title: string; dueOffset: number }> = [
     { title: 'overdue 3 days ago', dueOffset: -3 },
     { title: 'overdue yesterday',  dueOffset: -1 },
     { title: 'today 1',            dueOffset:  0 },

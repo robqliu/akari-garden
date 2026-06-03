@@ -22,8 +22,10 @@ function mockSetupApis(overrides: Record<string, Override> = {}): typeof fetch {
   const normalize = (v: Override) => typeof v === 'function' ? v : () => v
   return mockGoogleApi({
     [GOOGLE_TASK_LIST_URL]: () => Response.json({ id: TASK_LIST_ID }),
-    [GOOGLE_TASK_1_URL]: () =>
-      Response.json({ id: 'task-1', title: 'Water tomatoes', status: 'completed', due: `${TASK_DUE}T00:00:00.000Z` }),
+    [GOOGLE_TASK_1_URL]: (_url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+      return Response.json({ id: 'task-1', title: 'Water tomatoes', status: 'completed', due: `${TASK_DUE}T00:00:00.000Z` })
+    },
     [GOOGLE_TASKS_URL]: (_url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         return Response.json(
@@ -54,6 +56,8 @@ async function setupFixture(overrides: Record<string, Override> = {}) {
       fixture.request('/api/tasks', { method: 'POST', headers: authHeaders(session), body: JSON.stringify(body) }),
     patchTask: (taskId: string, body: object) =>
       fixture.request(`/api/tasks/${taskId}`, { method: 'PATCH', headers: authHeaders(session), body: JSON.stringify(body) }),
+    deleteTask: (taskId: string) =>
+      fixture.request(`/api/tasks/${taskId}`, { method: 'DELETE', headers: { cookie: `${SESSION_COOKIE}=${session}` } }),
   }
 }
 
@@ -70,6 +74,9 @@ describe('GET /api/tasks', () => {
     expect(await res.json()).toEqual({ tasks: [] })
   })
 
+  // task-3 in MOCK_TASKS has no due date. Users can create tasks directly via
+  // the Google Tasks API or UI, so we can't assume our creation-time invariants
+  // hold for every task in the list.
   it('returns tasks with due dates, filtering out tasks without due dates', async () => {
     const { getTasks } = await setupFixture()
     const res = await getTasks('?dueMin=2026-05-31')
@@ -107,6 +114,11 @@ describe('POST /api/tasks', () => {
     expect((await postTask({ due: '2026-06-01' })).status).toBe(400)
   })
 
+  it('returns 400 when due date is missing', async () => {
+    const { postTask } = await setupFixture()
+    expect((await postTask({ title: 'Plant seeds' })).status).toBe(400)
+  })
+
   it('creates task and returns 201', async () => {
     const { postTask } = await setupFixture()
     const res = await postTask({ title: 'Plant seeds', due: '2026-06-01' })
@@ -115,6 +127,7 @@ describe('POST /api/tasks', () => {
       task: { id: 'task-new', title: 'Plant seeds', status: 'needsAction', due: '2026-06-01' },
     })
   })
+
 })
 
 describe('PATCH /api/tasks/:taskId', () => {
@@ -133,6 +146,11 @@ describe('PATCH /api/tasks/:taskId', () => {
     expect((await patchTask('task-1', { status: 'invalid' })).status).toBe(400)
   })
 
+  it('returns 400 when body is empty', async () => {
+    const { patchTask } = await setupFixture()
+    expect((await patchTask('task-1', {})).status).toBe(400)
+  })
+
   it('updates task status and returns updated task', async () => {
     const { patchTask } = await setupFixture()
     const res = await patchTask('task-1', { status: 'completed' })
@@ -142,8 +160,40 @@ describe('PATCH /api/tasks/:taskId', () => {
     })
   })
 
+  it('updates title and due date and returns updated task', async () => {
+    const newDue = '2026-06-15'
+    const { patchTask } = await setupFixture({
+      [GOOGLE_TASK_1_URL]: () =>
+        Response.json({ id: 'task-1', title: 'Updated title', status: 'needsAction', due: `${newDue}T00:00:00.000Z` }),
+    })
+    const res = await patchTask('task-1', { title: 'Updated title', due: newDue })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      task: { id: 'task-1', title: 'Updated title', status: 'needsAction', due: newDue },
+    })
+  })
+
   it('returns 502 when Google Tasks is unavailable', async () => {
     const { patchTask } = await setupFixture({ [GOOGLE_TASK_1_URL]: new Response('error', { status: 503 }) })
     expect((await patchTask('task-1', { status: 'completed' })).status).toBe(502)
+  })
+})
+
+describe('DELETE /api/tasks/:taskId', () => {
+  it('returns 401 without a session', async () => {
+    const { fixture } = await setupFixture()
+    const res = await fixture.request('/api/tasks/task-1', { method: 'DELETE' })
+    expect(res.status).toBe(401)
+  })
+
+  it('deletes task and returns 204', async () => {
+    const { deleteTask } = await setupFixture()
+    const res = await deleteTask('task-1')
+    expect(res.status).toBe(204)
+  })
+
+  it('returns 502 when Google Tasks is unavailable', async () => {
+    const { deleteTask } = await setupFixture({ [GOOGLE_TASK_1_URL]: new Response('error', { status: 503 }) })
+    expect((await deleteTask('task-1')).status).toBe(502)
   })
 })
