@@ -11,68 +11,63 @@ function mockCalendarApi(overrides: Partial<Record<string, () => Response>> = {}
   })
 }
 
-describe('GET /api/calendar/registered', () => {
+describe('GET /api/calendar', () => {
   it('returns 401 without a session', async () => {
     const fixture = new LocalAppFixture(mockCalendarApi())
-    const res = await fixture.request('/api/calendar/registered')
+    const res = await fixture.request('/api/calendar')
     expect(res.status).toBe(401)
   })
 
   it('returns null when no calendar is linked', async () => {
     const fixture = new LocalAppFixture(mockCalendarApi())
     const session = await fixture.signIn()
-    const res = await fixture.request(
-      '/api/calendar/registered',
-      { headers: { cookie: `${SESSION_COOKIE}=${session}` } },
-    )
-    expect(await res.json()).toEqual({ calendar: null })
+    const res = await fixture.request('/api/calendar', {
+      headers: { cookie: `${SESSION_COOKIE}=${session}` },
+    })
+    expect(await res.json()).toEqual({ id: null })
   })
 
-  it('reflects a calendar after it is created', async () => {
+  it('reflects the calendar id after creation', async () => {
     const fixture = new LocalAppFixture(mockCalendarApi())
     const session = await fixture.signIn()
     const headers = { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' }
 
-    await fixture.request('/api/calendar/create', { method: 'POST', headers, body: '{}' })
+    await fixture.request('/api/calendar', { method: 'POST', headers, body: '{}' })
 
-    const res = await fixture.request('/api/calendar/registered', { headers })
-    expect(await res.json()).toEqual({ calendar: { id: 'new-cal-id' } })
+    const res = await fixture.request('/api/calendar', { headers })
+    expect(await res.json()).toEqual({ id: 'new-cal-id' })
   })
 })
 
-describe('POST /api/calendar/create', () => {
+describe('POST /api/calendar', () => {
   it('returns 401 without a session', async () => {
     const fixture = new LocalAppFixture(mockCalendarApi())
-    const res = await fixture.request(
-      '/api/calendar/create',
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
-    )
+    const res = await fixture.request('/api/calendar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    })
     expect(res.status).toBe(401)
   })
 
   it('creates a calendar and returns its id', async () => {
     const fixture = new LocalAppFixture(mockCalendarApi())
     const session = await fixture.signIn()
-    const res = await fixture.request(
-      '/api/calendar/create',
-      {
-        method: 'POST',
-        headers: { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ name: 'My Garden' }),
-      },
-    )
-    expect(await res.json()).toEqual({ calendar: { id: 'new-cal-id' } })
+    const res = await fixture.request('/api/calendar', {
+      method: 'POST',
+      headers: { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'My Garden' }),
+    })
+    expect(await res.json()).toEqual({ id: 'new-cal-id' })
   })
 
-  it('persists the calendar id so /registered reflects it', async () => {
+  it('persists the calendar so GET can retrieve it', async () => {
     const fixture = new LocalAppFixture(mockCalendarApi())
     const session = await fixture.signIn()
     const headers = { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' }
-
-    await fixture.request('/api/calendar/create', { method: 'POST', headers, body: '{}' })
-
-    const res = await fixture.request('/api/calendar/registered', { headers })
-    expect(await res.json()).toEqual({ calendar: { id: 'new-cal-id' } })
+    await fixture.request('/api/calendar', { method: 'POST', headers, body: '{}' })
+    const res = await fixture.request('/api/calendar', { headers })
+    expect(await res.json()).toEqual({ id: 'new-cal-id' })
   })
 
   it('returns 502 when Google is unavailable', async () => {
@@ -81,14 +76,11 @@ describe('POST /api/calendar/create', () => {
         new Response('error', { status: 503 }),
     }))
     const session = await fixture.signIn()
-    const res = await fixture.request(
-      '/api/calendar/create',
-      {
-        method: 'POST',
-        headers: { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' },
-        body: '{}',
-      },
-    )
+    const res = await fixture.request('/api/calendar', {
+      method: 'POST',
+      headers: { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' },
+      body: '{}',
+    })
     expect(res.status).toBe(502)
     expect(await res.json()).toMatchObject({ error: 'google_unavailable' })
   })

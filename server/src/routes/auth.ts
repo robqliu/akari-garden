@@ -22,6 +22,7 @@ import {
 const SCOPES = [
   'openid',
   'https://www.googleapis.com/auth/calendar.app.created',
+  'https://www.googleapis.com/auth/tasks',
 ].join(' ')
 
 // Cookie that survives the redirect to Google and back, carrying the

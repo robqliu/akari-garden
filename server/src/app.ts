@@ -5,6 +5,8 @@ import type { AppEnv } from './lib/env.js'
 import { buildAuthRouter } from './routes/auth.js'
 import { buildCalendarRouter } from './routes/calendar.js'
 import { buildNotesRouter } from './routes/notes.js'
+import { buildTaskListRouter } from './routes/task-list.js'
+import { buildTasksRouter } from './routes/tasks.js'
 
 export function buildApp(fetchImpl?: typeof fetch): Hono<AppEnv> {
   const app = new Hono<AppEnv>()
@@ -22,7 +24,11 @@ export function buildApp(fetchImpl?: typeof fetch): Hono<AppEnv> {
   })
   app.get('/health', (c) => c.json({ status: 'ok' }))
   app.route('/api/auth', buildAuthRouter(fetchImpl))
+  // TODO: not used by frontend anymore. Replaced by the task-related endpoints.
+  // May be useful later if the user wants to schedule an actual event instead of just tasks.
   app.route('/api/calendar', buildCalendarRouter(fetchImpl))
+  app.route('/api/task-list', buildTaskListRouter(fetchImpl))
+  app.route('/api/tasks', buildTasksRouter(fetchImpl))
   app.route('/api', buildNotesRouter())
   return app
 }

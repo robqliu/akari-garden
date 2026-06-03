@@ -1,0 +1,60 @@
+.task-list-setup {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  max-width: 420px;
+}
+
+.task-list-setup h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.task-list-setup__error {
+  margin: 0 0 0.5rem;
+  color: #c00;
+  font-size: 0.875rem;
+}
+
+.task-list-setup__note {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.task-list-setup__create-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.task-list-setup__create-form input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.task-list-setup__create-form button {
+  padding: 0.4rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: #2d5a27;
+  color: white;
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.task-list-setup__create-form button:hover {
+  background: #1e3e1a;
+}
+
+.task-list-setup__create-form button:disabled {
+  background: #ccc;
+  cursor: default;
+}

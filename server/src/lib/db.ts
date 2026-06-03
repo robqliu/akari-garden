@@ -16,6 +16,7 @@ export type UserRecord = {
   refreshToken: string
   createdAt: string
   calendarId?: string
+  taskListId?: string
 }
 
 export type AuthResult = { user: UserRecord; userId: string }
@@ -42,21 +43,23 @@ export async function deleteSession(env: Bindings, sessionId: string): Promise<v
 // leaves created_at unchanged so we preserve the original signup timestamp.
 export async function putUser(env: Bindings, userId: string, record: UserRecord): Promise<void> {
   await env.DB.prepare(`
-    INSERT INTO users (id, refresh_token, calendar_id, created_at) VALUES (?, ?, ?, ?)
+    INSERT INTO users (id, refresh_token, calendar_id, task_list_id, created_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       refresh_token = excluded.refresh_token,
-      calendar_id = excluded.calendar_id
-  `).bind(userId, record.refreshToken, record.calendarId ?? null, record.createdAt).run()
+      calendar_id = excluded.calendar_id,
+      task_list_id = excluded.task_list_id
+  `).bind(userId, record.refreshToken, record.calendarId ?? null, record.taskListId ?? null, record.createdAt).run()
 }
 
 export async function getUser(env: Bindings, userId: string): Promise<UserRecord | null> {
   const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?')
     .bind(userId)
-    .first<{ id: string; refresh_token: string; calendar_id: string | null; created_at: string }>()
+    .first<{ id: string; refresh_token: string; calendar_id: string | null; task_list_id: string | null; created_at: string }>()
   if (!row) return null
   return {
     refreshToken: row.refresh_token,
     calendarId: row.calendar_id ?? undefined,
+    taskListId: row.task_list_id ?? undefined,
     createdAt: row.created_at,
   }
 }
