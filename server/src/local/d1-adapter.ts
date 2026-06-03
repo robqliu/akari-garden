@@ -14,6 +14,11 @@ const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..',
 // from that index, and applies only the remainder. A fresh database runs all
 // migrations; an existing database skips the ones it has already seen.
 //
+// Each migration runs inside a transaction alongside its user_version bump.
+// PRAGMA user_version is a journaled write to the DB header, so it rolls back
+// with the transaction if the migration SQL fails — leaving the DB clean for a
+// retry on next startup.
+//
 // In production, D1 does something similar via wrangler d1 migrations apply,
 // which records applied migrations in a d1_migrations table.
 function applyMigrations(sqlite: BetterSqlite3.Database): void {
@@ -23,10 +28,14 @@ function applyMigrations(sqlite: BetterSqlite3.Database): void {
 
   let version = sqlite.pragma('user_version', { simple: true }) as number
 
+  const applyOne = sqlite.transaction((sql: string, newVersion: number) => {
+    sqlite.exec(sql)
+    sqlite.pragma(`user_version = ${newVersion}`)
+  })
+
   for (const file of files.slice(version)) {
-    sqlite.exec(readFileSync(join(MIGRATIONS_DIR, file), 'utf-8'))
+    applyOne(readFileSync(join(MIGRATIONS_DIR, file), 'utf-8'), version + 1)
     version++
-    sqlite.pragma(`user_version = ${version}`)
     console.log(`[dev] Applied migration: ${file}`)
   }
 }
