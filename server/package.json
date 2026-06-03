@@ -6,9 +6,8 @@
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/local/dev-server.ts",
     "dev:clean": "rm -f .dev.sqlite",
-    "build": "tsc",
-    "build:clean": "rm -rf dist",
-    "start": "node dist/local/dev-server.js",
+    "build": "wrangler deploy --dry-run",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
