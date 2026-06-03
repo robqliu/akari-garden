@@ -48,15 +48,13 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
     if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
-    const params = new URLSearchParams({ maxResults: '100' })
+    const params = new URLSearchParams({ showHidden: 'true', maxResults: '100' })
     const dueMin = c.req.query('dueMin')
     const dueMax = c.req.query('dueMax')
     const showCompleted = c.req.query('showCompleted')
-    const showHidden = c.req.query('showHidden')
     if (dueMin) params.set('dueMin', dueMin)
     if (dueMax) params.set('dueMax', dueMax)
     if (showCompleted) params.set('showCompleted', showCompleted)
-    if (showHidden) params.set('showHidden', showHidden)
 
     const res = await fetchImpl(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks?${params}`, {
       headers: { authorization: `Bearer ${accessToken}` },
