@@ -66,20 +66,18 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
 
     const data = (await res.json()) as { items?: GoogleTask[] }
     const rawItems = data.items ?? []
+    // Tasks created directly in Google (outside our app) may have no due date —
+    // we can't assume our creation-time invariants hold for all tasks in the list.
     const tasks = rawItems.filter((t): t is GoogleTask & { due: string } => t.due != null).map(toTaskItem)
-    if (tasks.length < rawItems.length) {
-      console.warn(`Google Tasks list: ${rawItems.length - tasks.length} item(s) have no due date and were excluded`)
-    }
 
     return c.json({ tasks })
   })
 
-  // Not yet wired to the frontend UI — currently used by the dev seed script.
   router.post(
     '/',
     zValidator('json', z.object({
       title: z.string().min(1),
-      due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     })),
     async (c) => {
       const { user } = c.get('auth')
@@ -92,10 +90,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
       const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
       if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
-      const googleTask: Record<string, string> = { title }
-      if (due) googleTask.due = `${due}T00:00:00.000Z`
-
-      const res = await googleFetch(user.taskListId, 'tasks', 'POST', googleTask, accessToken)
+      const res = await googleFetch(user.taskListId, 'tasks', 'POST', { title, due: `${due}T00:00:00.000Z` }, accessToken)
       if (!res.ok) return handleGoogleError(res, 'Tasks create')
 
       return c.json({ task: toTaskItem((await res.json()) as GoogleTask) }, 201)
@@ -104,7 +99,14 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
 
   router.patch(
     '/:taskId',
-    zValidator('json', z.object({ status: z.enum(['needsAction', 'completed']) })),
+    zValidator('json', z.object({
+      title: z.string().min(1).optional(),
+      due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      status: z.enum(['needsAction', 'completed']).optional(),
+    }).refine(
+      (obj) => obj.title !== undefined || obj.due !== undefined || obj.status !== undefined,
+      { message: 'at least one of title, due, or status is required' },
+    )),
     async (c) => {
       const { user } = c.get('auth')
       if (!user.taskListId) {
@@ -113,16 +115,38 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
       }
 
       const taskId = c.req.param('taskId')
-      const { status } = c.req.valid('json')
+      const { title, due, status } = c.req.valid('json')
       const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
       if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
-      const res = await googleFetch(user.taskListId, `tasks/${taskId}`, 'PATCH', { status }, accessToken)
+      const googlePatch: Record<string, string> = {}
+      if (title !== undefined) googlePatch.title = title
+      if (due !== undefined) googlePatch.due = `${due}T00:00:00.000Z`
+      if (status !== undefined) googlePatch.status = status
+
+      const res = await googleFetch(user.taskListId, `tasks/${taskId}`, 'PATCH', googlePatch, accessToken)
       if (!res.ok) return handleGoogleError(res, 'Tasks patch')
 
       return c.json({ task: toTaskItem((await res.json()) as GoogleTask) })
     },
   )
+
+  router.delete('/:taskId', async (c) => {
+    const { user } = c.get('auth')
+    if (!user.taskListId) {
+      console.error('DELETE /api/tasks called without taskListId — task list setup incomplete')
+      return c.json({ error: 'no_task_list' }, 500)
+    }
+
+    const taskId = c.req.param('taskId')
+    const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
+    if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
+
+    const res = await googleFetch(user.taskListId, `tasks/${taskId}`, 'DELETE', undefined, accessToken)
+    if (!res.ok) return handleGoogleError(res, 'Tasks delete')
+
+    return c.body(null, 204)
+  })
 
   return router
 }

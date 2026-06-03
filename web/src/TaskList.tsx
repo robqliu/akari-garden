@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { API_URL } from './config'
 import TaskListSetup from './TaskListSetup'
 import {
@@ -21,13 +22,23 @@ const PAGE_OFFSETS = [
 ] as const
 import './TaskList.css'
 
+type TaskActions = {
+  onToggle: (task: Task) => void
+  onEdit: (task: Task) => void
+  onSaveEdit: (taskId: string, title: string, due: string) => Promise<void>
+  onCancelEdit: () => void
+  onDelete: (task: Task) => void
+}
+
 type TaskItemProps = {
   task: Task
   showDate?: boolean
   onToggle: () => void
+  onEdit: () => void
+  onDelete: () => void
 }
 
-function TaskItem({ task, showDate, onToggle }: TaskItemProps) {
+function TaskItem({ task, showDate, onToggle, onEdit, onDelete }: TaskItemProps) {
   const done = task.status === 'completed'
   return (
     <div className={`task-item${done ? ' task-item--done' : ''}`}>
@@ -40,11 +51,83 @@ function TaskItem({ task, showDate, onToggle }: TaskItemProps) {
       </button>
       <span className="task-item__title">{task.title}</span>
       {showDate && <span className="task-item__date">{formatDate(task.due)}</span>}
+      <button className="task-item__action" onClick={onEdit} aria-label="編集">✎</button>
+      <button className="task-item__action" onClick={onDelete} aria-label="削除">✕</button>
     </div>
   )
 }
 
-function DaySection({ day, label, onToggle }: { day: TaskDay; label: string; onToggle: (task: Task) => void }) {
+type TaskFormProps = {
+  initialTitle?: string
+  initialDue?: string
+  submitLabel: string
+  onSubmit: (title: string, due: string) => Promise<void>
+  onCancel: () => void
+}
+
+function TaskForm({ initialTitle = '', initialDue, submitLabel, onSubmit, onCancel }: TaskFormProps) {
+  const [title, setTitle] = useState(initialTitle)
+  const [due, setDue] = useState(initialDue ?? '')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!title.trim() || !due) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await onSubmit(title.trim(), due)
+    } catch {
+      setError('失敗しました。もう一度お試しください。')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form className="task-form" onSubmit={handleSubmit}>
+      <div className="task-form__row">
+        <input
+          className="task-form__title"
+          type="text"
+          placeholder="タスクのタイトル"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          autoFocus
+          required
+        />
+        <input
+          className="task-form__date"
+          type="date"
+          value={due}
+          onChange={(e) => setDue(e.target.value)}
+          required
+        />
+      </div>
+      <div className="task-form__actions">
+        <button className="task-form__submit" type="submit" disabled={submitting || !title.trim() || !due}>
+          {submitLabel}
+        </button>
+        <button className="task-form__cancel" type="button" onClick={onCancel}>
+          キャンセル
+        </button>
+      </div>
+      {error && <p className="task-form__error">{error}</p>}
+    </form>
+  )
+}
+
+function DaySection({
+  day,
+  label,
+  editingTaskId,
+  actions,
+}: {
+  day: TaskDay
+  label: string
+  editingTaskId: string | null
+  actions: TaskActions
+}) {
   if (day.tasks.length === 0) {
     return (
       <div className="task-section task-section--empty">
@@ -56,9 +139,26 @@ function DaySection({ day, label, onToggle }: { day: TaskDay; label: string; onT
   return (
     <section className="task-section">
       <h2 className="task-section__header">{label}</h2>
-      {day.tasks.map((task) => (
-        <TaskItem key={task.id} task={task} onToggle={() => onToggle(task)} />
-      ))}
+      {day.tasks.map((task) =>
+        editingTaskId === task.id ? (
+          <TaskForm
+            key={task.id}
+            initialTitle={task.title}
+            initialDue={task.due.toString()}
+            submitLabel="保存"
+            onSubmit={(title, due) => actions.onSaveEdit(task.id, title, due)}
+            onCancel={actions.onCancelEdit}
+          />
+        ) : (
+          <TaskItem
+            key={task.id}
+            task={task}
+            onToggle={() => actions.onToggle(task)}
+            onEdit={() => actions.onEdit(task)}
+            onDelete={() => actions.onDelete(task)}
+          />
+        ),
+      )}
     </section>
   )
 }
@@ -80,6 +180,8 @@ export default function TaskList() {
   const [phase, setPhase] = useState<'checking-setup' | 'needs-setup' | 'loading' | 'ready' | 'error'>('checking-setup')
   const [loadingMore, setLoadingMore] = useState(false)
   const [overdueOpen, setOverdueOpen] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const today = useMemo(() => Temporal.Now.plainDateISO(), [])
   const tomorrow = useMemo(() => today.add({ days: 1 }), [today])
@@ -136,10 +238,6 @@ export default function TaskList() {
     if (phase !== 'ready' || nextPageIndex === null || loadingMore) return
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) loadMore() },
-      // On desktop the full list may fit on screen, causing all pages to load
-      // immediately. That's acceptable — 3 requests total, hard cap at 1 year.
-      // On mobile (primary target) the 7-day grid is typically tall enough that
-      // the sentinel starts below the fold.
       { rootMargin: '0px 0px -80px 0px' },
     )
     if (sentinelRef.current) observer.observe(sentinelRef.current)
@@ -166,6 +264,52 @@ export default function TaskList() {
     }
   }
 
+  const createTask = async (title: string, due: string): Promise<void> => {
+    const res = await fetch(`${API_URL}/api/tasks`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, due }),
+    })
+    if (!res.ok) throw new Error()
+    setAdding(false)
+    setPhase('loading')
+  }
+
+  const saveEdit = async (taskId: string, title: string, due: string): Promise<void> => {
+    const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, due }),
+    })
+    if (!res.ok) throw new Error()
+    setEditingTaskId(null)
+    setPhase('loading')
+  }
+
+  const deleteTask = async (task: Task) => {
+    setOverdue((prev) => prev.filter((t) => t.id !== task.id))
+    setPages((prev) => prev.map((page) => page.filter((t) => t.id !== task.id)))
+    try {
+      const res = await fetch(`${API_URL}/api/tasks/${task.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      setPhase('loading')
+    }
+  }
+
+  const taskActions: TaskActions = {
+    onToggle: toggleTask,
+    onEdit: (task) => setEditingTaskId(task.id),
+    onSaveEdit: saveEdit,
+    onCancelEdit: () => setEditingTaskId(null),
+    onDelete: deleteTask,
+  }
+
   if (phase === 'checking-setup' || phase === 'loading') {
     return <div className="task-list"><p className="task-list__status">読み込み中…</p></div>
   }
@@ -182,6 +326,19 @@ export default function TaskList() {
 
   return (
     <div className="task-list">
+      {adding ? (
+        <TaskForm
+          initialDue={today.toString()}
+          submitLabel="追加"
+          onSubmit={createTask}
+          onCancel={() => setAdding(false)}
+        />
+      ) : (
+        <button className="task-list__add-btn" onClick={() => setAdding(true)}>
+          ＋ タスクを追加
+        </button>
+      )}
+
       {overdue.length > 0 && (
         <section className="task-section">
           <button
@@ -191,9 +348,27 @@ export default function TaskList() {
             <span>期限切れ ({overdue.length})</span>
             <span>{overdueOpen ? '▾' : '▸'}</span>
           </button>
-          {overdueOpen && overdue.map((task) => (
-            <TaskItem key={task.id} task={task} showDate onToggle={() => toggleTask(task)} />
-          ))}
+          {overdueOpen && overdue.map((task) =>
+            editingTaskId === task.id ? (
+              <TaskForm
+                key={task.id}
+                initialTitle={task.title}
+                initialDue={task.due.toString()}
+                submitLabel="保存"
+                onSubmit={(title, due) => saveEdit(task.id, title, due)}
+                onCancel={() => setEditingTaskId(null)}
+              />
+            ) : (
+              <TaskItem
+                key={task.id}
+                task={task}
+                showDate
+                onToggle={() => toggleTask(task)}
+                onEdit={() => setEditingTaskId(task.id)}
+                onDelete={() => deleteTask(task)}
+              />
+            ),
+          )}
         </section>
       )}
 
@@ -205,7 +380,7 @@ export default function TaskList() {
           : day.date.equals(tomorrow)
           ? `明日 · ${formatDate(day.date)}`
           : formatDate(day.date)
-        return <DaySection key={day.date.toString()} day={day} label={label} onToggle={toggleTask} />
+        return <DaySection key={day.date.toString()} day={day} label={label} editingTaskId={editingTaskId} actions={taskActions} />
       })}
 
       {beyond7.map((day, i) => {
@@ -214,7 +389,7 @@ export default function TaskList() {
         return (
           <Fragment key={day.date.toString()}>
             {skipped > 0 && <div className="task-gap"><span>{skipped}日省略</span></div>}
-            <DaySection day={day} label={formatDate(day.date)} onToggle={toggleTask} />
+            <DaySection day={day} label={formatDate(day.date)} editingTaskId={editingTaskId} actions={taskActions} />
           </Fragment>
         )
       })}
