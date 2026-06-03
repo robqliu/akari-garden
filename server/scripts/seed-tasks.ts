@@ -26,6 +26,7 @@
 // In dev the signing key defaults to 'dev-only-signing-key' on both sides, so
 // this isn't providing real security — it's just matching the format the server
 // expects. In production this script wouldn't run at all.
+import { Temporal } from '@js-temporal/polyfill'
 import BetterSqlite3 from 'better-sqlite3'
 
 const DB_PATH = '.dev.sqlite'
@@ -43,18 +44,8 @@ async function signCookieValue(value: string, secret: string): Promise<string> {
   return encodeURIComponent(`${value}.${signature}`)
 }
 
-function localDateStr(offsetDays = 0): string {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
-  return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    String(d.getDate()).padStart(2, '0'),
-  ].join('-')
-}
-
 async function createTask(sessionCookie: string, title: string, dueOffset: number | null): Promise<void> {
-  const due = dueOffset !== null ? localDateStr(dueOffset) : undefined
+  const due = dueOffset !== null ? Temporal.Now.plainDateISO().add({ days: dueOffset }).toString() : undefined
   const res = await fetch(`${API_BASE}/api/tasks`, {
     method: 'POST',
     headers: { cookie: `${SESSION_COOKIE}=${sessionCookie}`, 'content-type': 'application/json' },

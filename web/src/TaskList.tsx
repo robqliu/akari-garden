@@ -5,11 +5,11 @@ import {
   type Task,
   type TaskStatus,
   type TaskDay,
+  type RawTask,
+  Temporal,
   PAGE_OFFSETS,
-  localDateStr,
-  addDays,
+  parseTask,
   formatDate,
-  daysBetween,
   buildFirst7,
   buildBeyond7,
 } from './tasks'
@@ -52,14 +52,14 @@ function DaySection({ day, label, onToggle }: { day: TaskDay; label: string; onT
   )
 }
 
-async function fetchTaskPage(from: string, to: string): Promise<Task[]> {
+async function fetchTaskPage(from: Temporal.PlainDate, to: Temporal.PlainDate): Promise<Task[]> {
   const res = await fetch(
-    `${API_URL}/api/tasks?dueMin=${from}T00:00:00.000Z&dueMax=${addDays(to, 1)}T00:00:00.000Z&showCompleted=true&showHidden=true`,
+    `${API_URL}/api/tasks?dueMin=${from}T00:00:00.000Z&dueMax=${to.add({ days: 1 })}T00:00:00.000Z&showCompleted=true&showHidden=true`,
     { credentials: 'include' },
   )
   if (res.status === 404) throw Object.assign(new Error('task_list_not_found'), { code: 'task_list_not_found' })
   if (!res.ok) throw new Error(`tasks fetch failed: ${res.status}`)
-  return ((await res.json()) as { tasks: Task[] }).tasks
+  return ((await res.json()) as { tasks: RawTask[] }).tasks.map(parseTask)
 }
 
 export default function TaskList() {
@@ -70,8 +70,8 @@ export default function TaskList() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [overdueOpen, setOverdueOpen] = useState(true)
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const today = useMemo(() => localDateStr(0), [])
-  const tomorrow = useMemo(() => addDays(today, 1), [today])
+  const today = useMemo(() => Temporal.Now.plainDateISO(), [])
+  const tomorrow = useMemo(() => today.add({ days: 1 }), [today])
 
   useEffect(() => {
     if (phase !== 'checking-setup') return
@@ -87,7 +87,7 @@ export default function TaskList() {
     Promise.all([
       fetch(`${API_URL}/api/tasks?dueMax=${today}T00:00:00.000Z&showCompleted=false`, { credentials: 'include' }),
       fetch(
-        `${API_URL}/api/tasks?dueMin=${addDays(today, firstPage.start)}T00:00:00.000Z&dueMax=${addDays(today, firstPage.end + 1)}T00:00:00.000Z&showCompleted=true&showHidden=true`,
+        `${API_URL}/api/tasks?dueMin=${today.add({ days: firstPage.start })}T00:00:00.000Z&dueMax=${today.add({ days: firstPage.end + 1 })}T00:00:00.000Z&showCompleted=true&showHidden=true`,
         { credentials: 'include' },
       ),
     ])
@@ -95,11 +95,11 @@ export default function TaskList() {
         if (overdueRes.status === 404 || upcomingRes.status === 404) { setPhase('needs-setup'); return }
         if (!overdueRes.ok || !upcomingRes.ok) { setPhase('error'); return }
         const [overdueData, upcomingData] = await Promise.all([
-          overdueRes.json() as Promise<{ tasks: Task[] }>,
-          upcomingRes.json() as Promise<{ tasks: Task[] }>,
+          overdueRes.json() as Promise<{ tasks: RawTask[] }>,
+          upcomingRes.json() as Promise<{ tasks: RawTask[] }>,
         ])
-        setOverdue(overdueData.tasks)
-        setPages([upcomingData.tasks])
+        setOverdue(overdueData.tasks.map(parseTask))
+        setPages([upcomingData.tasks.map(parseTask)])
         setNextPageIndex(PAGE_OFFSETS.length > 1 ? 1 : null)
         setPhase('ready')
       })
@@ -111,7 +111,7 @@ export default function TaskList() {
     setLoadingMore(true)
     try {
       const { start, end } = PAGE_OFFSETS[nextPageIndex]
-      const tasks = await fetchTaskPage(addDays(today, start), addDays(today, end))
+      const tasks = await fetchTaskPage(today.add({ days: start }), today.add({ days: end }))
       setPages((prev) => [...prev, tasks])
       setNextPageIndex(nextPageIndex + 1 < PAGE_OFFSETS.length ? nextPageIndex + 1 : null)
     } catch (err) {
@@ -189,19 +189,19 @@ export default function TaskList() {
       {isEmpty && <p className="task-list__status">タスクがありません。</p>}
 
       {first7.map((day) => {
-        const label = day.date === today
+        const label = day.date.equals(today)
           ? `今日 · ${formatDate(day.date)}`
-          : day.date === tomorrow
+          : day.date.equals(tomorrow)
           ? `明日 · ${formatDate(day.date)}`
           : formatDate(day.date)
-        return <DaySection key={day.date} day={day} label={label} onToggle={toggleTask} />
+        return <DaySection key={day.date.toString()} day={day} label={label} onToggle={toggleTask} />
       })}
 
       {beyond7.map((day, i) => {
-        const prevDate = i === 0 ? addDays(today, 6) : beyond7[i - 1].date
-        const skipped = daysBetween(prevDate, day.date) - 1
+        const prevDate = i === 0 ? today.add({ days: 6 }) : beyond7[i - 1].date
+        const skipped = prevDate.until(day.date).days - 1
         return (
-          <Fragment key={day.date}>
+          <Fragment key={day.date.toString()}>
             {skipped > 0 && <div className="task-gap"><span>{skipped}日省略</span></div>}
             <DaySection day={day} label={formatDate(day.date)} onToggle={toggleTask} />
           </Fragment>
