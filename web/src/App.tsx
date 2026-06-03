@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import FarmLayout from './FarmLayout'
 import TaskList from './TaskList'
 import Timeline from './Timeline'
+import Weather from './Weather'
 import { API_URL } from './config'
 import './App.css'
 
-type View = 'timeline' | 'calendar' | 'layout'
+type View = 'timeline' | 'calendar' | 'layout' | 'weather'
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error'
 
 function App() {
@@ -63,6 +64,7 @@ function App() {
         {view === 'timeline' && <Timeline />}
         {view === 'layout' && <FarmLayout />}
         {view === 'calendar' && <TaskList />}
+        {view === 'weather' && <Weather />}
       </div>
 
       <nav className="bottom-nav">
@@ -86,6 +88,13 @@ function App() {
         >
           <span>🗺️</span>
           <span>図面</span>
+        </button>
+        <button
+          className={`bottom-nav__item ${view === 'weather' ? 'bottom-nav__item--active' : ''}`}
+          onClick={() => setView('weather')}
+        >
+          <span>🌤️</span>
+          <span>天気</span>
         </button>
         <button className="bottom-nav__item bottom-nav__item--logout" onClick={handleLogout}>
           <span>↩</span>
