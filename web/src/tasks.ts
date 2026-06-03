@@ -16,13 +16,6 @@ export type TaskDay = {
   tasks: Task[]
 }
 
-// Three fixed page windows: first week, first month, rest of year.
-export const PAGE_OFFSETS = [
-  { start: 0, end: 6 },
-  { start: 7, end: 36 },
-  { start: 37, end: 364 },
-] as const
-
 export type RawTask = { id: string; title: string; status: TaskStatus; due: string }
 
 export function parseTask(raw: RawTask): Task {
@@ -33,14 +26,16 @@ export function formatDate(date: Temporal.PlainDate): string {
   return date.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric' })
 }
 
-
 function groupByDate(tasks: Task[]): TaskDay[] {
   const map = new Map<string, Task[]>()
   for (const task of tasks) {
     const key = task.due.toString()
-    const bucket = map.get(key) ?? []
-    bucket.push(task)
-    map.set(key, bucket)
+    const bucket = map.get(key)
+    if (bucket) {
+      bucket.push(task)
+    } else {
+      map.set(key, [task])
+    }
   }
   return [...map.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -49,14 +44,21 @@ function groupByDate(tasks: Task[]): TaskDay[] {
 
 // First 7 days from today, every day shown even if empty.
 export function buildFirst7(tasks: Task[], today: Temporal.PlainDate): TaskDay[] {
+  const byDate = new Map<string, Task[]>()
+  for (const task of tasks) {
+    const key = task.due.toString()
+    const bucket = byDate.get(key)
+    if (bucket) bucket.push(task)
+    else byDate.set(key, [task])
+  }
   return Array.from({ length: 7 }, (_, i) => {
     const date = today.add({ days: i })
-    return { date, tasks: tasks.filter((t) => t.due.equals(date)) }
+    return { date, tasks: byDate.get(date.toString()) ?? [] }
   })
 }
 
-// Days beyond the first 7 that have tasks, for gap-indicator rendering.
+// Tasks beyond the first 7 days that have tasks, for gap-indicator rendering.
 export function buildBeyond7(tasks: Task[], today: Temporal.PlainDate): TaskDay[] {
-  const cutoff = today.add({ days: 6 })
-  return groupByDate(tasks.filter((t) => Temporal.PlainDate.compare(t.due, cutoff) > 0))
+  const firstWeekEnd = today.add({ days: 6 })
+  return groupByDate(tasks.filter((t) => Temporal.PlainDate.compare(t.due, firstWeekEnd) > 0))
 }

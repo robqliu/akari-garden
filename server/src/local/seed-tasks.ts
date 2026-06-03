@@ -78,7 +78,7 @@ async function main() {
     { title: 'next next next day', dueOffset:  3 },
     { title: 'future',             dueOffset: 21 },
     { title: 'future + 1',         dueOffset: 22 },
-    { title: 'future (gap)',        dueOffset: 24 },
+    { title: 'future (gap)',       dueOffset: 24 },
     { title: 'double future',      dueOffset: 42 },
   ]
 

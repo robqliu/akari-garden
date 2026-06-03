@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 
 import type { AppEnv } from '../lib/env.js'
 import { requireAuth } from '../lib/auth.js'
-import { refreshAccessToken } from '../lib/google.js'
+import { refreshAccessToken, handleGoogleError } from '../lib/google.js'
 
 const GOOGLE_TASKS_BASE = 'https://tasks.googleapis.com/tasks/v1/lists'
 
@@ -26,17 +26,16 @@ function toTaskItem(t: GoogleTask): TaskItem {
   return { id: t.id, title: t.title, status: t.status, due: t.due?.slice(0, 10) ?? '' }
 }
 
-async function handleGoogleError(res: Response, operation: string): Promise<Response> {
-  const text = await res.text()
-  if (res.status >= 400 && res.status < 500) {
-    console.error(`Google Tasks ${operation}: unexpected ${res.status}:`, text)
-    return Response.json({ error: 'internal_error' }, { status: 500 })
-  }
-  console.error(`Google Tasks ${operation}: unavailable (${res.status}):`, text)
-  return Response.json({ error: 'google_unavailable' }, { status: 502 })
-}
-
 export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
+  const googleFetch = (url: string, accessToken: string, method = 'GET', body?: object) =>
+    fetchImpl(url, {
+      method,
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        ...(body ? { 'content-type': 'application/json' } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    })
   const router = new Hono<AppEnv>()
 
   router.use(requireAuth())
@@ -56,22 +55,18 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     if (dueMax) params.set('dueMax', `${dueMax}T00:00:00.000Z`)
     if (showCompleted) params.set('showCompleted', showCompleted)
 
-    const res = await fetchImpl(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks?${params}`, {
-      headers: { authorization: `Bearer ${accessToken}` },
-    })
+    const res = await googleFetch(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks?${params}`, accessToken)
     if (res.status === 404) {
       console.error(`Google Tasks: task list ${user.taskListId} not found (deleted externally?)`)
       return c.json({ error: 'task_list_not_found' }, 404)
     }
-    if (!res.ok) return handleGoogleError(res, 'list')
+    if (!res.ok) return handleGoogleError(res, 'Tasks list')
 
     const data = (await res.json()) as { items?: GoogleTask[] }
-    const tasks = (data.items ?? [])
-      .filter((t): t is GoogleTask & { due: string } => t.due != null)
-      .map(toTaskItem)
-
-    if (tasks.length === 0) {
-      console.log(`Google Tasks list: 0 results (dueMin=${params.get('dueMin')} dueMax=${params.get('dueMax')} showCompleted=${params.get('showCompleted')} raw=${data.items?.length ?? 0})`)
+    const rawItems = data.items ?? []
+    const tasks = rawItems.filter((t): t is GoogleTask & { due: string } => t.due != null).map(toTaskItem)
+    if (tasks.length === 0 && rawItems.length > 0) {
+      console.warn(`Google Tasks list: ${rawItems.length} item(s) returned but none have due dates`)
     }
 
     return c.json({ tasks })
@@ -80,7 +75,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
   // Not yet wired to the frontend UI — currently used by the dev seed script.
   router.post('/', async (c) => {
     const { user } = c.get('auth')
-    if (!user.taskListId) return c.json({ error: 'no_task_list' }, 400)
+    if (!user.taskListId) return c.json({ error: 'no_task_list' }, 500)
 
     const body = await c.req.json<{ title?: unknown; due?: unknown }>()
     if (typeof body.title !== 'string' || !body.title.trim()) {
@@ -98,19 +93,15 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     const googleTask: Record<string, string> = { title }
     if (due) googleTask.due = `${due}T00:00:00.000Z`
 
-    const res = await fetchImpl(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify(googleTask),
-    })
-    if (!res.ok) return handleGoogleError(res, 'create')
+    const res = await googleFetch(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks`, accessToken, 'POST', googleTask)
+    if (!res.ok) return handleGoogleError(res, 'Tasks create')
 
     return c.json({ task: toTaskItem((await res.json()) as GoogleTask) }, 201)
   })
 
   router.patch('/:taskId', async (c) => {
     const { user } = c.get('auth')
-    if (!user.taskListId) return c.json({ error: 'no_task_list' }, 400)
+    if (!user.taskListId) return c.json({ error: 'no_task_list' }, 500)
 
     const taskId = c.req.param('taskId')
     const body = await c.req.json<{ status?: unknown }>()
@@ -121,12 +112,11 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
     if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
-    const res = await fetchImpl(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks/${taskId}`, {
-      method: 'PATCH',
-      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ status: body.status }),
-    })
-    if (!res.ok) return handleGoogleError(res, 'patch')
+    const res = await googleFetch(
+      `${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks/${taskId}`,
+      accessToken, 'PATCH', { status: body.status },
+    )
+    if (!res.ok) return handleGoogleError(res, 'Tasks patch')
 
     return c.json({ task: toTaskItem((await res.json()) as GoogleTask) })
   })

@@ -8,9 +8,11 @@ const GOOGLE_TASKS_URL = `https://tasks.googleapis.com/tasks/v1/lists/${TASK_LIS
 const GOOGLE_TASK_1_URL = `${GOOGLE_TASKS_URL}/task-1`
 const GOOGLE_TASK_LIST_URL = 'https://tasks.googleapis.com/tasks/v1/users/@me/lists'
 
+const TASK_DUE = '2026-05-31'
+
 const MOCK_TASKS = [
-  { id: 'task-1', title: 'Water tomatoes', status: 'needsAction', due: '2026-05-31T00:00:00.000Z' },
-  { id: 'task-2', title: 'Check for pests', status: 'completed', due: '2026-05-31T00:00:00.000Z' },
+  { id: 'task-1', title: 'Water tomatoes', status: 'needsAction', due: `${TASK_DUE}T00:00:00.000Z` },
+  { id: 'task-2', title: 'Check for pests', status: 'completed', due: `${TASK_DUE}T00:00:00.000Z` },
   { id: 'task-3', title: 'No date task', status: 'needsAction' },
 ]
 
@@ -21,7 +23,7 @@ function mockSetupApis(overrides: Partial<Record<string, Override>> = {}): typeo
   return mockGoogleApi({
     [GOOGLE_TASK_LIST_URL]: () => Response.json({ id: TASK_LIST_ID }),
     [GOOGLE_TASK_1_URL]: () =>
-      Response.json({ id: 'task-1', title: 'Water tomatoes', status: 'completed', due: '2026-05-31T00:00:00.000Z' }),
+      Response.json({ id: 'task-1', title: 'Water tomatoes', status: 'completed', due: `${TASK_DUE}T00:00:00.000Z` }),
     [GOOGLE_TASKS_URL]: (_url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         return Response.json(
@@ -73,8 +75,8 @@ describe('GET /api/tasks', () => {
     const res = await getTasks('?dueMin=2026-05-31')
     expect(res.status).toBe(200)
     expect((await res.json() as { tasks: unknown[] }).tasks).toEqual([
-      { id: 'task-1', title: 'Water tomatoes', status: 'needsAction', due: '2026-05-31' },
-      { id: 'task-2', title: 'Check for pests', status: 'completed', due: '2026-05-31' },
+      { id: 'task-1', title: 'Water tomatoes', status: 'needsAction', due: TASK_DUE },
+      { id: 'task-2', title: 'Check for pests', status: 'completed', due: TASK_DUE },
     ])
   })
 
@@ -100,7 +102,7 @@ describe('POST /api/tasks', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 400 for invalid input', async () => {
+  it('returns 400 when title is missing', async () => {
     const { postTask } = await setupFixture()
     expect((await postTask({ due: '2026-06-01' })).status).toBe(400)
   })
@@ -138,7 +140,7 @@ describe('PATCH /api/tasks/:taskId', () => {
     const res = await patchTask('task-1', { status: 'completed' })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
-      task: { id: 'task-1', title: 'Water tomatoes', status: 'completed', due: '2026-05-31' },
+      task: { id: 'task-1', title: 'Water tomatoes', status: 'completed', due: TASK_DUE },
     })
   })
 

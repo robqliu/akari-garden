@@ -2,6 +2,16 @@ import type { Bindings } from './env.js'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 
+export async function handleGoogleError(res: Response, operation: string): Promise<Response> {
+  const text = await res.text()
+  if (res.status >= 400 && res.status < 500) {
+    console.error(`Google ${operation}: unexpected ${res.status}:`, text)
+    return Response.json({ error: 'internal_error' }, { status: 500 })
+  }
+  console.error(`Google ${operation}: unavailable (${res.status}):`, text)
+  return Response.json({ error: 'google_unavailable' }, { status: 502 })
+}
+
 export async function refreshAccessToken(
   refreshToken: string,
   env: Bindings,
