@@ -60,6 +60,18 @@ describe('GET /api/tasks', () => {
     ])
   })
 
+  it('returns 500 when Google returns a bad request error', async () => {
+    const fixture = new LocalAppFixture(mockSetupApis({
+      [`https://tasks.googleapis.com/tasks/v1/lists/${TASK_LIST_ID}/tasks`]: () =>
+        new Response('invalid argument', { status: 400 }),
+    }))
+    const session = await signInAndSetup(fixture)
+    const res = await fixture.request('/api/tasks', {
+      headers: { cookie: `${SESSION_COOKIE}=${session}` },
+    })
+    expect(res.status).toBe(500)
+  })
+
   it('returns 502 when Google Tasks is unavailable', async () => {
     const fixture = new LocalAppFixture(mockSetupApis({
       [`https://tasks.googleapis.com/tasks/v1/lists/${TASK_LIST_ID}/tasks`]: () =>
@@ -70,6 +82,43 @@ describe('GET /api/tasks', () => {
       headers: { cookie: `${SESSION_COOKIE}=${session}` },
     })
     expect(res.status).toBe(502)
+  })
+})
+
+describe('POST /api/tasks', () => {
+  it('returns 401 without a session', async () => {
+    const fixture = new LocalAppFixture(mockSetupApis())
+    const res = await fixture.request('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Plant seeds' }),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 400 for invalid input', async () => {
+    const fixture = new LocalAppFixture(mockSetupApis())
+    const session = await signInAndSetup(fixture)
+    const res = await fixture.request('/api/tasks', {
+      method: 'POST',
+      headers: { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ due: '2026-06-01' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('creates task and returns 201', async () => {
+    const fixture = new LocalAppFixture(mockSetupApis())
+    const session = await signInAndSetup(fixture)
+    const res = await fixture.request('/api/tasks', {
+      method: 'POST',
+      headers: { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Plant seeds', due: '2026-06-01' }),
+    })
+    expect(res.status).toBe(201)
+    expect(await res.json()).toEqual({
+      task: { id: 'task-new', title: 'Plant seeds', status: 'needsAction', due: '2026-06-01' },
+    })
   })
 })
 

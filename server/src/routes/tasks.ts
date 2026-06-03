@@ -22,6 +22,16 @@ type GoogleTask = {
   due?: string
 }
 
+async function handleGoogleError(res: Response, operation: string): Promise<Response> {
+  const text = await res.text()
+  if (res.status >= 400 && res.status < 500) {
+    console.error(`Google Tasks ${operation}: unexpected ${res.status}:`, text)
+    return Response.json({ error: 'internal_error' }, { status: 500 })
+  }
+  console.error(`Google Tasks ${operation}: unavailable (${res.status}):`, text)
+  return Response.json({ error: 'google_unavailable' }, { status: 502 })
+}
+
 export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
   const router = new Hono<AppEnv>()
 
@@ -49,10 +59,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
       console.error(`Google Tasks: task list ${user.taskListId} not found (deleted externally?)`)
       return c.json({ error: 'task_list_not_found' }, 404)
     }
-    if (!res.ok) {
-      console.error(`Google Tasks query failed: ${res.status}`, await res.text())
-      return c.json({ error: 'google_unavailable' }, 502)
-    }
+    if (!res.ok) return handleGoogleError(res, 'list')
 
     const data = (await res.json()) as { items?: GoogleTask[] }
     const tasks: TaskItem[] = (data.items ?? [])
@@ -85,10 +92,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
       },
       body: JSON.stringify({ status }),
     })
-    if (!res.ok) {
-      console.error(`Google Tasks patch failed: ${res.status}`, await res.text())
-      return c.json({ error: 'google_unavailable' }, 502)
-    }
+    if (!res.ok) return handleGoogleError(res, 'patch')
 
     const task = (await res.json()) as GoogleTask
     return c.json({
