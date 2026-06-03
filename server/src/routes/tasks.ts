@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import type { AppEnv } from '../lib/env.js'
 import { requireAuth } from '../lib/auth.js'
+import { AppErrors, errorResponse } from '../lib/errors.js'
 import { refreshAccessToken, handleGoogleError } from '../lib/google.js'
 
 export type TaskStatus = 'needsAction' | 'completed'
@@ -43,11 +44,11 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
   router.use(requireAuth())
 
   router.get('/', async (c) => {
-    const { user } = c.get('auth')
+    const { user, userId } = c.get('auth')
     if (!user.taskListId) return c.json({ tasks: [] })
 
     const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
-    if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
+    if (!accessToken) return errorResponse(c, AppErrors.REAUTH_REQUIRED, { userId })
 
     const params = new URLSearchParams({ showHidden: 'true', maxResults: '100' })
     const dueMin = c.req.query('dueMin')
@@ -59,8 +60,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
 
     const res = await googleFetch(user.taskListId, `tasks?${params}`, 'GET', undefined, accessToken)
     if (res.status === 404) {
-      console.error(`Google Tasks: task list ${user.taskListId} not found (deleted externally?)`)
-      return c.json({ error: 'task_list_not_found' }, 404)
+      return errorResponse(c, AppErrors.TASK_LIST_NOT_FOUND, { userId, taskListId: user.taskListId })
     }
     if (!res.ok) return handleGoogleError(res, 'Tasks list')
 
@@ -83,15 +83,14 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
       due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     })),
     async (c) => {
-      const { user } = c.get('auth')
+      const { user, userId } = c.get('auth')
       if (!user.taskListId) {
-        console.error('POST /api/tasks called without taskListId — task list setup incomplete')
-        return c.json({ error: 'no_task_list' }, 500)
+        return errorResponse(c, AppErrors.NO_TASK_LIST, { userId })
       }
 
       const { title, due } = c.req.valid('json')
       const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
-      if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
+      if (!accessToken) return errorResponse(c, AppErrors.REAUTH_REQUIRED, { userId })
 
       const res = await googleFetch(user.taskListId, 'tasks', 'POST', { title, due: `${due}T00:00:00.000Z` }, accessToken)
       if (!res.ok) return handleGoogleError(res, 'Tasks create')
@@ -111,16 +110,15 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
       { message: 'at least one of title, due, or status is required' },
     )),
     async (c) => {
-      const { user } = c.get('auth')
+      const { user, userId } = c.get('auth')
       if (!user.taskListId) {
-        console.error('PATCH /api/tasks called without taskListId — task list setup incomplete')
-        return c.json({ error: 'no_task_list' }, 500)
+        return errorResponse(c, AppErrors.NO_TASK_LIST, { userId })
       }
 
       const taskId = c.req.param('taskId')
       const { title, due, status } = c.req.valid('json')
       const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
-      if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
+      if (!accessToken) return errorResponse(c, AppErrors.REAUTH_REQUIRED, { userId, taskId })
 
       const googlePatch: Record<string, string> = {}
       if (title !== undefined) googlePatch.title = title
@@ -135,15 +133,14 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
   )
 
   router.delete('/:taskId', async (c) => {
-    const { user } = c.get('auth')
+    const { user, userId } = c.get('auth')
     if (!user.taskListId) {
-      console.error('DELETE /api/tasks called without taskListId — task list setup incomplete')
-      return c.json({ error: 'no_task_list' }, 500)
+      return errorResponse(c, AppErrors.NO_TASK_LIST, { userId })
     }
 
     const taskId = c.req.param('taskId')
     const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
-    if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
+    if (!accessToken) return errorResponse(c, AppErrors.REAUTH_REQUIRED, { userId, taskId })
 
     const res = await googleFetch(user.taskListId, `tasks/${taskId}`, 'DELETE', undefined, accessToken)
     if (!res.ok) return handleGoogleError(res, 'Tasks delete')

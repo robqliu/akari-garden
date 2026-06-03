@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../lib/env.js'
 import { putUser } from '../lib/db.js'
 import { requireAuth } from '../lib/auth.js'
+import { AppErrors, GoogleErrors, errorResponse } from '../lib/errors.js'
 import { refreshAccessToken } from '../lib/google.js'
 
 const GOOGLE_TASK_LISTS_URL = 'https://tasks.googleapis.com/tasks/v1/users/@me/lists'
@@ -23,10 +24,10 @@ export function buildTaskListRouter(fetchImpl: typeof fetch = fetch): Hono<AppEn
     const name = body.name?.trim() || 'Akari Garden'
 
     const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
-    if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
+    if (!accessToken) return errorResponse(c, AppErrors.REAUTH_REQUIRED, { userId })
 
     const taskList = await createGoogleTaskList(accessToken, name, fetchImpl)
-    if (!taskList) return c.json({ error: 'google_unavailable' }, 502)
+    if (!taskList) return errorResponse(c, GoogleErrors.TASK_LIST_CREATE_FAILED, { userId })
 
     user.taskListId = taskList.id
     await putUser(c.env, userId, user)
