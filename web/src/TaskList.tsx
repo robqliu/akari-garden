@@ -39,15 +39,20 @@ function TaskItem({ task, showDate, onToggle }: TaskItemProps) {
 }
 
 function DaySection({ day, label, onToggle }: { day: TaskDay; label: string; onToggle: (task: Task) => void }) {
+  if (day.tasks.length === 0) {
+    return (
+      <div className="task-section task-section--empty">
+        <span className="task-section__header">{label}</span>
+        <span className="task-day__empty">タスクなし</span>
+      </div>
+    )
+  }
   return (
     <section className="task-section">
       <h2 className="task-section__header">{label}</h2>
-      {day.tasks.length > 0
-        ? day.tasks.map((task) => (
-          <TaskItem key={task.id} task={task} onToggle={() => onToggle(task)} />
-        ))
-        : <p className="task-day__empty">タスクなし</p>
-      }
+      {day.tasks.map((task) => (
+        <TaskItem key={task.id} task={task} onToggle={() => onToggle(task)} />
+      ))}
     </section>
   )
 }
