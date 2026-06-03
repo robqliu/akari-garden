@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed-tasks": "tsx --env-file-if-exists=.env scripts/seed-tasks.ts"
+    "seed-tasks": "tsx --env-file-if-exists=.env src/local/seed-tasks.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.2",
