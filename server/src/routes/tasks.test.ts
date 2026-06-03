@@ -17,8 +17,15 @@ function mockSetupApis(overrides: Partial<Record<string, () => Response>> = {}):
       Response.json({ id: TASK_LIST_ID }),
     [`https://tasks.googleapis.com/tasks/v1/lists/${TASK_LIST_ID}/tasks/task-1`]: () =>
       Response.json({ id: 'task-1', title: 'Water tomatoes', status: 'completed', due: '2026-05-31T00:00:00.000Z' }),
-    [`https://tasks.googleapis.com/tasks/v1/lists/${TASK_LIST_ID}/tasks`]: () =>
-      Response.json({ items: MOCK_TASKS }),
+    [`https://tasks.googleapis.com/tasks/v1/lists/${TASK_LIST_ID}/tasks`]: (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Response.json(
+          { id: 'task-new', title: 'Plant seeds', status: 'needsAction', due: '2026-06-01T00:00:00.000Z' },
+          { status: 201 },
+        )
+      }
+      return Response.json({ items: MOCK_TASKS })
+    },
     ...overrides,
   })
 }

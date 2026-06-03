@@ -22,6 +22,10 @@ type GoogleTask = {
   due?: string
 }
 
+function toTaskItem(t: GoogleTask): TaskItem {
+  return { id: t.id, title: t.title, status: t.status, due: t.due?.slice(0, 10) ?? '' }
+}
+
 async function handleGoogleError(res: Response, operation: string): Promise<Response> {
   const text = await res.text()
   if (res.status >= 400 && res.status < 500) {
@@ -44,13 +48,15 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
     if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
-    const params = new URLSearchParams({ showHidden: 'true', maxResults: '100' })
+    const params = new URLSearchParams({ maxResults: '100' })
     const dueMin = c.req.query('dueMin')
     const dueMax = c.req.query('dueMax')
     const showCompleted = c.req.query('showCompleted')
+    const showHidden = c.req.query('showHidden')
     if (dueMin) params.set('dueMin', dueMin)
     if (dueMax) params.set('dueMax', dueMax)
     if (showCompleted) params.set('showCompleted', showCompleted)
+    if (showHidden) params.set('showHidden', showHidden)
 
     const res = await fetchImpl(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks?${params}`, {
       headers: { authorization: `Bearer ${accessToken}` },
@@ -62,11 +68,46 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     if (!res.ok) return handleGoogleError(res, 'list')
 
     const data = (await res.json()) as { items?: GoogleTask[] }
-    const tasks: TaskItem[] = (data.items ?? [])
+    const tasks = (data.items ?? [])
       .filter((t): t is GoogleTask & { due: string } => t.due != null)
-      .map((t) => ({ id: t.id, title: t.title, status: t.status, due: t.due.slice(0, 10) }))
+      .map(toTaskItem)
+
+    if (tasks.length === 0) {
+      console.log(`Google Tasks list: 0 results (dueMin=${params.get('dueMin')} dueMax=${params.get('dueMax')} showCompleted=${params.get('showCompleted')} raw=${data.items?.length ?? 0})`)
+    }
 
     return c.json({ tasks })
+  })
+
+  // Not yet wired to the frontend UI — currently used by the dev seed script.
+  router.post('/', async (c) => {
+    const { user } = c.get('auth')
+    if (!user.taskListId) return c.json({ error: 'no_task_list' }, 400)
+
+    const body = await c.req.json<{ title?: unknown; due?: unknown }>()
+    if (typeof body.title !== 'string' || !body.title.trim()) {
+      return c.json({ error: 'invalid_title' }, 400)
+    }
+    const title = body.title.trim()
+    if (body.due !== undefined && (typeof body.due !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.due))) {
+      return c.json({ error: 'invalid_due' }, 400)
+    }
+    const due = typeof body.due === 'string' ? body.due : undefined
+
+    const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
+    if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
+
+    const googleTask: Record<string, string> = { title }
+    if (due) googleTask.due = `${due}T00:00:00.000Z`
+
+    const res = await fetchImpl(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify(googleTask),
+    })
+    if (!res.ok) return handleGoogleError(res, 'create')
+
+    return c.json({ task: toTaskItem((await res.json()) as GoogleTask) }, 201)
   })
 
   router.patch('/:taskId', async (c) => {
@@ -75,29 +116,21 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
 
     const taskId = c.req.param('taskId')
     const body = await c.req.json<{ status?: unknown }>()
-
     if (body.status !== 'needsAction' && body.status !== 'completed') {
       return c.json({ error: 'invalid_status' }, 400)
     }
-    const status = body.status as TaskStatus
 
     const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
     if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
     const res = await fetchImpl(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks/${taskId}`, {
       method: 'PATCH',
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ status }),
+      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ status: body.status }),
     })
     if (!res.ok) return handleGoogleError(res, 'patch')
 
-    const task = (await res.json()) as GoogleTask
-    return c.json({
-      task: { id: task.id, title: task.title, status: task.status, due: task.due?.slice(0, 10) ?? '' },
-    })
+    return c.json({ task: toTaskItem((await res.json()) as GoogleTask) })
   })
 
   return router

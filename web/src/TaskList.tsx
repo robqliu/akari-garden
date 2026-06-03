@@ -68,7 +68,7 @@ export default function TaskList() {
   const [nextPageIndex, setNextPageIndex] = useState<number | null>(null)
   const [phase, setPhase] = useState<'checking-setup' | 'needs-setup' | 'loading' | 'ready' | 'error'>('checking-setup')
   const [loadingMore, setLoadingMore] = useState(false)
-  const [overdueOpen, setOverdueOpen] = useState(false)
+  const [overdueOpen, setOverdueOpen] = useState(true)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const today = useMemo(() => localDateStr(0), [])
   const tomorrow = useMemo(() => addDays(today, 1), [today])
@@ -86,7 +86,7 @@ export default function TaskList() {
     const yesterday = addDays(today, -1)
     const firstPage = PAGE_OFFSETS[0]
     Promise.all([
-      fetch(`${API_URL}/api/tasks?dueMax=${yesterday}T23:59:59.999Z&showCompleted=false`, { credentials: 'include' }),
+      fetch(`${API_URL}/api/tasks?dueMin=${addDays(today, -365)}T00:00:00.000Z&dueMax=${yesterday}T23:59:59.999Z&showCompleted=false`, { credentials: 'include' }),
       fetch(
         `${API_URL}/api/tasks?dueMin=${addDays(today, firstPage.start)}T00:00:00.000Z&dueMax=${addDays(today, firstPage.end)}T23:59:59.999Z&showCompleted=true&showHidden=true`,
         { credentials: 'include' },
