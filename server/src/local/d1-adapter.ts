@@ -6,11 +6,29 @@ import { join, dirname } from 'node:path'
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations')
 
-function loadSchema(): string {
+// Applies any pending migrations to the SQLite database.
+//
+// SQLite's PRAGMA user_version is used as a migration counter: it starts at 0 on
+// a new database and is incremented after each migration file is applied. On
+// startup this reads the current version, slices the sorted migration file list
+// from that index, and applies only the remainder. A fresh database runs all
+// migrations; an existing database skips the ones it has already seen.
+//
+// In production, D1 does something similar via wrangler d1 migrations apply,
+// which records applied migrations in a d1_migrations table.
+function applyMigrations(sqlite: BetterSqlite3.Database): void {
   const files = readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith('.sql'))
     .sort()
-  return files.map((f) => readFileSync(join(MIGRATIONS_DIR, f), 'utf-8')).join('\n')
+
+  let version = sqlite.pragma('user_version', { simple: true }) as number
+
+  for (const file of files.slice(version)) {
+    sqlite.exec(readFileSync(join(MIGRATIONS_DIR, file), 'utf-8'))
+    version++
+    sqlite.pragma(`user_version = ${version}`)
+    console.log(`[dev] Applied migration: ${file}`)
+  }
 }
 
 /**
@@ -18,7 +36,7 @@ function loadSchema(): string {
  */
 export function createSqliteD1(path: string = ':memory:'): D1Database {
   const sqlite = new BetterSqlite3(path)
-  sqlite.exec(loadSchema())
+  applyMigrations(sqlite)
 
   let poisoned = false
   function assertHealthy() {
