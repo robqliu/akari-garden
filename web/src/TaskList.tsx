@@ -83,7 +83,6 @@ export default function TaskList() {
 
   useEffect(() => {
     if (phase !== 'loading') return
-    const yesterday = addDays(today, -1)
     const firstPage = PAGE_OFFSETS[0]
     Promise.all([
       fetch(`${API_URL}/api/tasks?dueMax=${today}T00:00:00.000Z&showCompleted=false`, { credentials: 'include' }),
