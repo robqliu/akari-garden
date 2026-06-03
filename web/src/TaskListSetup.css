@@ -1,4 +1,4 @@
-.calendar-setup {
+.task-list-setup {
   margin-top: 1rem;
   padding: 1rem 1.25rem;
   border: 1px solid #e0e0e0;
@@ -6,30 +6,30 @@
   max-width: 420px;
 }
 
-.calendar-setup h3 {
+.task-list-setup h3 {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
   font-weight: 600;
 }
 
-.calendar-error {
+.task-list-setup__error {
   margin: 0 0 0.5rem;
   color: #c00;
   font-size: 0.875rem;
 }
 
-.calendar-create-note {
+.task-list-setup__note {
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
   color: #666;
 }
 
-.calendar-create-form {
+.task-list-setup__create-form {
   display: flex;
   gap: 0.5rem;
 }
 
-.calendar-create-form input {
+.task-list-setup__create-form input {
   flex: 1;
   padding: 0.4rem 0.6rem;
   border: 1px solid #ccc;
@@ -38,7 +38,7 @@
   font-family: inherit;
 }
 
-.calendar-create-form button {
+.task-list-setup__create-form button {
   padding: 0.4rem 0.75rem;
   border: none;
   border-radius: 6px;
@@ -50,11 +50,11 @@
   white-space: nowrap;
 }
 
-.calendar-create-form button:hover {
+.task-list-setup__create-form button:hover {
   background: #1e3e1a;
 }
 
-.calendar-create-form button:disabled {
+.task-list-setup__create-form button:disabled {
   background: #ccc;
   cursor: default;
 }

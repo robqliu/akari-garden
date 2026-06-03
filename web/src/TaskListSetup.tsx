@@ -29,15 +29,15 @@ function TaskListSetup({ onComplete }: Props) {
   }
 
   return (
-    <section className="calendar-setup">
+    <section className="task-list-setup">
       <h3>タスクリストを作成</h3>
-      <p className="calendar-create-note">
+      <p className="task-list-setup__note">
         Googleタスクに新しいリストを作成します。現在、タスクの追加はGoogleカレンダーから行ってください。
       </p>
       {state === 'error' && (
-        <p className="calendar-error">作成に失敗しました。もう一度試してください。</p>
+        <p className="task-list-setup__error">作成に失敗しました。もう一度試してください。</p>
       )}
-      <div className="calendar-create-form">
+      <div className="task-list-setup__create-form">
         <input
           type="text"
           value={name}
