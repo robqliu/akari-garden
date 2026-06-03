@@ -78,47 +78,7 @@
   color: #999;
 }
 
-/* FAB */
-.fab {
-  position: fixed;
-  bottom: 5rem;
-  right: 1.25rem;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: #2d5a27;
-  color: white;
-  font-size: 1.75rem;
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
-/* Compose sheet */
-.compose-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex;
-  align-items: flex-end;
-  z-index: 100;
-}
-
-.compose-sheet {
-  background: white;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  border-radius: 16px 16px 0 0;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
+/* Compose sheet content — base styles in App.css */
 
 .compose-sheet__crop-tags {
   display: flex;
@@ -153,19 +113,3 @@
   box-sizing: border-box;
 }
 
-.compose-sheet__save {
-  align-self: flex-end;
-  padding: 0.5rem 1.5rem;
-  background: #2d5a27;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.compose-sheet__save:disabled {
-  background: #bbb;
-  cursor: default;
-}

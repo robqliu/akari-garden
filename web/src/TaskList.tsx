@@ -117,6 +117,59 @@ function TaskForm({ initialTitle = '', initialDue, submitLabel, onSubmit, onCanc
   )
 }
 
+function TaskComposeSheet({ today, onSave, onClose }: {
+  today: Temporal.PlainDate
+  onSave: (title: string, due: string) => Promise<void>
+  onClose: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [due, setDue] = useState(today.toString())
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(false)
+
+  const handleSave = async () => {
+    if (!title.trim() || !due) return
+    setSaving(true)
+    setSaveError(false)
+    try {
+      await onSave(title.trim(), due)
+    } catch {
+      setSaveError(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-end z-[100]" onClick={onClose}>
+      <div className="bg-white w-full max-w-[600px] mx-auto rounded-t-2xl p-5 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+        <input
+          className="text-base font-[inherit] border border-[#d8d0c0] rounded-lg py-2 px-3 w-full box-border bg-white"
+          type="text"
+          placeholder="タスクのタイトル"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          autoFocus
+        />
+        <input
+          className="text-[0.9375rem] font-[inherit] border border-[#d8d0c0] rounded-lg py-2 px-3 bg-white"
+          type="date"
+          value={due}
+          onChange={(e) => setDue(e.target.value)}
+        />
+        {saveError && <p className="m-0 text-sm text-red-600">保存に失敗しました。もう一度試してください。</p>}
+        <button
+          className="self-end py-2 px-6 bg-garden text-white border-0 rounded-lg text-base font-[inherit] cursor-pointer disabled:bg-[#bbb] disabled:cursor-default"
+          onClick={handleSave}
+          disabled={saving || !title.trim() || !due}
+        >
+          {saving ? '保存中…' : '保存'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function DaySection({
   day,
   label,
@@ -180,7 +233,7 @@ export default function TaskList() {
   const [phase, setPhase] = useState<'checking-setup' | 'needs-setup' | 'loading' | 'ready' | 'error'>('checking-setup')
   const [loadingMore, setLoadingMore] = useState(false)
   const [overdueOpen, setOverdueOpen] = useState(true)
-  const [adding, setAdding] = useState(false)
+  const [composing, setComposing] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const today = useMemo(() => Temporal.Now.plainDateISO(), [])
@@ -272,7 +325,7 @@ export default function TaskList() {
       body: JSON.stringify({ title, due }),
     })
     if (!res.ok) throw new Error()
-    setAdding(false)
+    setComposing(false)
     setPhase('loading')
   }
 
@@ -325,20 +378,8 @@ export default function TaskList() {
   const isEmpty = overdue.length === 0 && (pages[0] ?? []).length === 0 && beyond7.length === 0
 
   return (
+    <>
     <div className="task-list">
-      {adding ? (
-        <TaskForm
-          initialDue={today.toString()}
-          submitLabel="追加"
-          onSubmit={createTask}
-          onCancel={() => setAdding(false)}
-        />
-      ) : (
-        <button className="task-list__add-btn" onClick={() => setAdding(true)}>
-          ＋ タスクを追加
-        </button>
-      )}
-
       {overdue.length > 0 && (
         <section className="task-section">
           <button
@@ -397,5 +438,9 @@ export default function TaskList() {
       {nextPageIndex !== null && <div ref={sentinelRef} style={{ height: 1 }} />}
       {loadingMore && <p className="task-list__status">読み込み中…</p>}
     </div>
+
+    <button className="fixed bottom-20 right-5 w-14 h-14 rounded-full bg-garden text-white text-[1.75rem] border-0 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.2)] flex items-center justify-center leading-none" onClick={() => setComposing(true)}>＋</button>
+    {composing && <TaskComposeSheet today={today} onSave={createTask} onClose={() => setComposing(false)} />}
+    </>
   )
 }

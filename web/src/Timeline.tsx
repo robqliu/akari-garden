@@ -64,8 +64,8 @@ function ComposeSheet({ onSave, onClose }: ComposeSheetProps) {
   }
 
   return (
-    <div className="compose-overlay" onClick={onClose}>
-      <div className="compose-sheet" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 flex items-end z-[100]" onClick={onClose}>
+      <div className="bg-white w-full max-w-[600px] mx-auto rounded-t-2xl p-5 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
         <div className="compose-sheet__crop-tags">
           {SORTED_CROPS.map((c) => (
             <button
@@ -85,10 +85,10 @@ function ComposeSheet({ onSave, onClose }: ComposeSheetProps) {
           rows={4}
           autoFocus
         />
-        {validationError && <p className="compose-sheet__error">{validationError}</p>}
-        {saveError && <p className="compose-sheet__error">保存に失敗しました。もう一度試してください。</p>}
+        {validationError && <p className="m-0 text-sm text-red-600">{validationError}</p>}
+        {saveError && <p className="m-0 text-sm text-red-600">保存に失敗しました。もう一度試してください。</p>}
         <button
-          className="compose-sheet__save"
+          className="self-end px-6 py-2 bg-garden text-white border-0 rounded-lg text-base cursor-pointer disabled:opacity-50 disabled:cursor-default"
           onClick={handleSave}
           disabled={saving}
         >
@@ -206,7 +206,7 @@ export default function Timeline() {
         </div>
       </div>
 
-      <button className="fab" onClick={() => setComposing(true)}>＋</button>
+      <button className="fixed bottom-20 right-5 w-14 h-14 rounded-full bg-garden text-white text-[1.75rem] border-0 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.2)] flex items-center justify-center leading-none" onClick={() => setComposing(true)}>＋</button>
 
       {composing && <ComposeSheet onSave={saveNote} onClose={() => setComposing(false)} />}
     </>
