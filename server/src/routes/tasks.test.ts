@@ -70,7 +70,7 @@ describe('GET /api/tasks', () => {
 
   it('returns tasks with due dates, filtering out tasks without due dates', async () => {
     const { getTasks } = await setupFixture()
-    const res = await getTasks('?dueMin=2026-05-31T00:00:00.000Z')
+    const res = await getTasks('?dueMin=2026-05-31')
     expect(res.status).toBe(200)
     expect((await res.json() as { tasks: unknown[] }).tasks).toEqual([
       { id: 'task-1', title: 'Water tomatoes', status: 'needsAction', due: '2026-05-31' },

@@ -54,7 +54,7 @@ function DaySection({ day, label, onToggle }: { day: TaskDay; label: string; onT
 
 async function fetchTaskPage(from: Temporal.PlainDate, to: Temporal.PlainDate): Promise<Task[]> {
   const res = await fetch(
-    `${API_URL}/api/tasks?dueMin=${from}T00:00:00.000Z&dueMax=${to.add({ days: 1 })}T00:00:00.000Z&showCompleted=true&showHidden=true`,
+    `${API_URL}/api/tasks?dueMin=${from}&dueMax=${to.add({ days: 1 })}&showCompleted=true`,
     { credentials: 'include' },
   )
   if (res.status === 404) throw Object.assign(new Error('task_list_not_found'), { code: 'task_list_not_found' })
@@ -85,9 +85,9 @@ export default function TaskList() {
     if (phase !== 'loading') return
     const firstPage = PAGE_OFFSETS[0]
     Promise.all([
-      fetch(`${API_URL}/api/tasks?dueMax=${today}T00:00:00.000Z&showCompleted=false`, { credentials: 'include' }),
+      fetch(`${API_URL}/api/tasks?dueMax=${today}&showCompleted=false`, { credentials: 'include' }),
       fetch(
-        `${API_URL}/api/tasks?dueMin=${today.add({ days: firstPage.start })}T00:00:00.000Z&dueMax=${today.add({ days: firstPage.end + 1 })}T00:00:00.000Z&showCompleted=true&showHidden=true`,
+        `${API_URL}/api/tasks?dueMin=${today.add({ days: firstPage.start })}&dueMax=${today.add({ days: firstPage.end + 1 })}&showCompleted=true`,
         { credentials: 'include' },
       ),
     ])

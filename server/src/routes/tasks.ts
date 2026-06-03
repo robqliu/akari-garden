@@ -52,8 +52,8 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     const dueMin = c.req.query('dueMin')
     const dueMax = c.req.query('dueMax')
     const showCompleted = c.req.query('showCompleted')
-    if (dueMin) params.set('dueMin', dueMin)
-    if (dueMax) params.set('dueMax', dueMax)
+    if (dueMin) params.set('dueMin', `${dueMin}T00:00:00.000Z`)
+    if (dueMax) params.set('dueMax', `${dueMax}T00:00:00.000Z`)
     if (showCompleted) params.set('showCompleted', showCompleted)
 
     const res = await fetchImpl(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks?${params}`, {
