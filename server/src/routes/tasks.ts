@@ -66,9 +66,12 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
 
     const data = (await res.json()) as { items?: GoogleTask[] }
     const rawItems = data.items ?? []
-    // Tasks created directly in Google (outside our app) may have no due date —
-    // we can't assume our creation-time invariants hold for all tasks in the list.
+    // Tasks created directly via Google (outside this app) may have no due date.
+    // We filter them out here — the FE only handles dated tasks.
     const tasks = rawItems.filter((t): t is GoogleTask & { due: string } => t.due != null).map(toTaskItem)
+    if (tasks.length < rawItems.length) {
+      console.warn(`Google Tasks list: ${rawItems.length - tasks.length} item(s) have no due date and were excluded`)
+    }
 
     return c.json({ tasks })
   })

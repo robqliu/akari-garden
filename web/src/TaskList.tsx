@@ -291,6 +291,10 @@ export default function TaskList() {
     if (phase !== 'ready' || nextPageIndex === null || loadingMore) return
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) loadMore() },
+      // On desktop the full list may fit on screen, causing all pages to load
+      // immediately. That's acceptable — 3 requests total, hard cap at 1 year.
+      // On mobile (primary target) the 7-day grid is typically tall enough that
+      // the sentinel starts below the fold.
       { rootMargin: '0px 0px -80px 0px' },
     )
     if (sentinelRef.current) observer.observe(sentinelRef.current)
@@ -342,6 +346,8 @@ export default function TaskList() {
   }
 
   const deleteTask = async (task: Task) => {
+    // Optimistic: remove immediately. On failure, reload to restore the task —
+    // reinserting at the correct sorted position is not worth the complexity.
     setOverdue((prev) => prev.filter((t) => t.id !== task.id))
     setPages((prev) => prev.map((page) => page.filter((t) => t.id !== task.id)))
     try {
@@ -351,7 +357,7 @@ export default function TaskList() {
       })
       if (!res.ok) throw new Error()
     } catch {
-      setPhase('loading')
+      setPhase('loading') // triggers a full reload, restoring the task
     }
   }
 
