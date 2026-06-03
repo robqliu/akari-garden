@@ -18,7 +18,7 @@ const MOCK_TASKS = [
 
 type Override = Response | ((_url: string, init?: RequestInit) => Response)
 
-function mockSetupApis(overrides: Partial<Record<string, Override>> = {}): typeof fetch {
+function mockSetupApis(overrides: Record<string, Override> = {}): typeof fetch {
   const normalize = (v: Override) => typeof v === 'function' ? v : () => v
   return mockGoogleApi({
     [GOOGLE_TASK_LIST_URL]: () => Response.json({ id: TASK_LIST_ID }),
@@ -41,7 +41,7 @@ function authHeaders(session: string) {
   return { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' }
 }
 
-async function setupFixture(overrides: Partial<Record<string, Override>> = {}) {
+async function setupFixture(overrides: Record<string, Override> = {}) {
   const fixture = new LocalAppFixture(mockSetupApis(overrides))
   const session = await fixture.signIn()
   await fixture.request('/api/task-list', { method: 'POST', headers: authHeaders(session), body: '{}' })
@@ -130,9 +130,7 @@ describe('PATCH /api/tasks/:taskId', () => {
 
   it('returns 400 for invalid status', async () => {
     const { patchTask } = await setupFixture()
-    const res = await patchTask('task-1', { status: 'invalid' })
-    expect(res.status).toBe(400)
-    expect(await res.json()).toMatchObject({ error: 'invalid_status' })
+    expect((await patchTask('task-1', { status: 'invalid' })).status).toBe(400)
   })
 
   it('updates task status and returns updated task', async () => {

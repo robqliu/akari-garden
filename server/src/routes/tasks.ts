@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
 
 import type { AppEnv } from '../lib/env.js'
 import { requireAuth } from '../lib/auth.js'
 import { refreshAccessToken, handleGoogleError } from '../lib/google.js'
-
-const GOOGLE_TASKS_BASE = 'https://tasks.googleapis.com/tasks/v1/lists'
 
 export type TaskStatus = 'needsAction' | 'completed'
 
@@ -26,9 +26,11 @@ function toTaskItem(t: GoogleTask): TaskItem {
   return { id: t.id, title: t.title, status: t.status, due: t.due?.slice(0, 10) ?? '' }
 }
 
+const GOOGLE_TASKS_BASE = 'https://tasks.googleapis.com/tasks/v1/lists'
+
 export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
-  const googleFetch = (url: string, accessToken: string, method = 'GET', body?: object) =>
-    fetchImpl(url, {
+  const googleFetch = (taskListId: string, path: string, method: string, body: object | undefined, accessToken: string) =>
+    fetchImpl(`${GOOGLE_TASKS_BASE}/${taskListId}/${path}`, {
       method,
       headers: {
         authorization: `Bearer ${accessToken}`,
@@ -55,7 +57,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     if (dueMax) params.set('dueMax', `${dueMax}T00:00:00.000Z`)
     if (showCompleted) params.set('showCompleted', showCompleted)
 
-    const res = await googleFetch(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks?${params}`, accessToken)
+    const res = await googleFetch(user.taskListId, `tasks?${params}`, 'GET', undefined, accessToken)
     if (res.status === 404) {
       console.error(`Google Tasks: task list ${user.taskListId} not found (deleted externally?)`)
       return c.json({ error: 'task_list_not_found' }, 404)
@@ -65,61 +67,62 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     const data = (await res.json()) as { items?: GoogleTask[] }
     const rawItems = data.items ?? []
     const tasks = rawItems.filter((t): t is GoogleTask & { due: string } => t.due != null).map(toTaskItem)
-    if (tasks.length === 0 && rawItems.length > 0) {
-      console.warn(`Google Tasks list: ${rawItems.length} item(s) returned but none have due dates`)
+    if (tasks.length < rawItems.length) {
+      console.warn(`Google Tasks list: ${rawItems.length - tasks.length} item(s) have no due date and were excluded`)
     }
 
     return c.json({ tasks })
   })
 
   // Not yet wired to the frontend UI — currently used by the dev seed script.
-  router.post('/', async (c) => {
-    const { user } = c.get('auth')
-    if (!user.taskListId) return c.json({ error: 'no_task_list' }, 500)
+  router.post(
+    '/',
+    zValidator('json', z.object({
+      title: z.string().min(1),
+      due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    })),
+    async (c) => {
+      const { user } = c.get('auth')
+      if (!user.taskListId) {
+        console.error('POST /api/tasks called without taskListId — task list setup incomplete')
+        return c.json({ error: 'no_task_list' }, 500)
+      }
 
-    const body = await c.req.json<{ title?: unknown; due?: unknown }>()
-    if (typeof body.title !== 'string' || !body.title.trim()) {
-      return c.json({ error: 'invalid_title' }, 400)
-    }
-    const title = body.title.trim()
-    if (body.due !== undefined && (typeof body.due !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.due))) {
-      return c.json({ error: 'invalid_due' }, 400)
-    }
-    const due = typeof body.due === 'string' ? body.due : undefined
+      const { title, due } = c.req.valid('json')
+      const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
+      if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
-    const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
-    if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
+      const googleTask: Record<string, string> = { title }
+      if (due) googleTask.due = `${due}T00:00:00.000Z`
 
-    const googleTask: Record<string, string> = { title }
-    if (due) googleTask.due = `${due}T00:00:00.000Z`
+      const res = await googleFetch(user.taskListId, 'tasks', 'POST', googleTask, accessToken)
+      if (!res.ok) return handleGoogleError(res, 'Tasks create')
 
-    const res = await googleFetch(`${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks`, accessToken, 'POST', googleTask)
-    if (!res.ok) return handleGoogleError(res, 'Tasks create')
+      return c.json({ task: toTaskItem((await res.json()) as GoogleTask) }, 201)
+    },
+  )
 
-    return c.json({ task: toTaskItem((await res.json()) as GoogleTask) }, 201)
-  })
+  router.patch(
+    '/:taskId',
+    zValidator('json', z.object({ status: z.enum(['needsAction', 'completed']) })),
+    async (c) => {
+      const { user } = c.get('auth')
+      if (!user.taskListId) {
+        console.error('PATCH /api/tasks called without taskListId — task list setup incomplete')
+        return c.json({ error: 'no_task_list' }, 500)
+      }
 
-  router.patch('/:taskId', async (c) => {
-    const { user } = c.get('auth')
-    if (!user.taskListId) return c.json({ error: 'no_task_list' }, 500)
+      const taskId = c.req.param('taskId')
+      const { status } = c.req.valid('json')
+      const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
+      if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
 
-    const taskId = c.req.param('taskId')
-    const body = await c.req.json<{ status?: unknown }>()
-    if (body.status !== 'needsAction' && body.status !== 'completed') {
-      return c.json({ error: 'invalid_status' }, 400)
-    }
+      const res = await googleFetch(user.taskListId, `tasks/${taskId}`, 'PATCH', { status }, accessToken)
+      if (!res.ok) return handleGoogleError(res, 'Tasks patch')
 
-    const accessToken = await refreshAccessToken(user.refreshToken, c.env, fetchImpl)
-    if (!accessToken) return c.json({ error: 'reauth_required' }, 401)
-
-    const res = await googleFetch(
-      `${GOOGLE_TASKS_BASE}/${user.taskListId}/tasks/${taskId}`,
-      accessToken, 'PATCH', { status: body.status },
-    )
-    if (!res.ok) return handleGoogleError(res, 'Tasks patch')
-
-    return c.json({ task: toTaskItem((await res.json()) as GoogleTask) })
-  })
+      return c.json({ task: toTaskItem((await res.json()) as GoogleTask) })
+    },
+  )
 
   return router
 }

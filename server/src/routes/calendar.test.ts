@@ -61,6 +61,15 @@ describe('POST /api/calendar', () => {
     expect(await res.json()).toEqual({ id: 'new-cal-id' })
   })
 
+  it('persists the calendar so GET can retrieve it', async () => {
+    const fixture = new LocalAppFixture(mockCalendarApi())
+    const session = await fixture.signIn()
+    const headers = { cookie: `${SESSION_COOKIE}=${session}`, 'content-type': 'application/json' }
+    await fixture.request('/api/calendar', { method: 'POST', headers, body: '{}' })
+    const res = await fixture.request('/api/calendar', { headers })
+    expect(await res.json()).toEqual({ id: 'new-cal-id' })
+  })
+
   it('returns 502 when Google is unavailable', async () => {
     const fixture = new LocalAppFixture(mockCalendarApi({
       'https://www.googleapis.com/calendar/v3/calendars': () =>

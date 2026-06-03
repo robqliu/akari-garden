@@ -13,11 +13,11 @@ import {
   buildBeyond7,
 } from './tasks'
 
-// Three page windows: first week, next ~3 weeks, rest of year.
+// Three page windows: first week, rest of first month, rest of year.
 const PAGE_OFFSETS = [
   { start: 0, end: 6 },
-  { start: 7, end: 36 },
-  { start: 37, end: 364 },
+  { start: 7, end: 30 },
+  { start: 31, end: 364 },
 ] as const
 import './TaskList.css'
 
