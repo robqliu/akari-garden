@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 import type { AppEnv } from '../lib/env.js'
 import { requireAuth } from '../lib/auth.js'
-import { AppErrors, errorResponse } from '../lib/errors.js'
+import { AppErrors, GoogleErrors, errorResponse } from '../lib/errors.js'
 import { refreshAccessToken, handleGoogleError } from '../lib/google.js'
 
 export type TaskStatus = 'needsAction' | 'completed'
@@ -60,9 +60,9 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
 
     const res = await googleFetch(user.taskListId, `tasks?${params}`, 'GET', undefined, accessToken)
     if (res.status === 404) {
-      return errorResponse(c, AppErrors.TASK_LIST_NOT_FOUND, { userId, taskListId: user.taskListId })
+      return errorResponse(c, GoogleErrors.TASK_LIST_NOT_FOUND, { userId, taskListId: user.taskListId })
     }
-    if (!res.ok) return handleGoogleError(res, 'Tasks list')
+    if (!res.ok) return handleGoogleError(res, 'Tasks list', c)
 
     const data = (await res.json()) as { items?: GoogleTask[] }
     const rawItems = data.items ?? []
@@ -93,7 +93,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
       if (!accessToken) return errorResponse(c, AppErrors.REAUTH_REQUIRED, { userId })
 
       const res = await googleFetch(user.taskListId, 'tasks', 'POST', { title, due: `${due}T00:00:00.000Z` }, accessToken)
-      if (!res.ok) return handleGoogleError(res, 'Tasks create')
+      if (!res.ok) return handleGoogleError(res, 'Tasks create', c)
 
       return c.json({ task: toTaskItem((await res.json()) as GoogleTask) }, 201)
     },
@@ -126,7 +126,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
       if (status !== undefined) googlePatch.status = status
 
       const res = await googleFetch(user.taskListId, `tasks/${taskId}`, 'PATCH', googlePatch, accessToken)
-      if (!res.ok) return handleGoogleError(res, 'Tasks patch')
+      if (!res.ok) return handleGoogleError(res, 'Tasks patch', c)
 
       return c.json({ task: toTaskItem((await res.json()) as GoogleTask) })
     },
@@ -143,7 +143,7 @@ export function buildTasksRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> 
     if (!accessToken) return errorResponse(c, AppErrors.REAUTH_REQUIRED, { userId, taskId })
 
     const res = await googleFetch(user.taskListId, `tasks/${taskId}`, 'DELETE', undefined, accessToken)
-    if (!res.ok) return handleGoogleError(res, 'Tasks delete')
+    if (!res.ok) return handleGoogleError(res, 'Tasks delete', c)
 
     return c.body(null, 204)
   })

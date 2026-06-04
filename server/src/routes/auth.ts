@@ -10,7 +10,7 @@ import { sign as signJwt, verify as verifyJwt } from 'hono/utils/jwt/jwt'
 import { JwtTokenExpired } from 'hono/utils/jwt/types'
 
 import type { AppEnv, Bindings } from '../lib/env.js'
-import { AppErrors, GoogleErrors, errorResponse } from '../lib/errors.js'
+import { GoogleErrors, errorResponse } from '../lib/errors.js'
 import {
   deleteSession,
   getAuthenticatedUser,
@@ -56,8 +56,8 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     deleteCookie(c, CSRF_GUARD_COOKIE, { path: '/' })
 
     const guardError = await verifyCsrfGuard(stateParam, guardCookie, c.env.SESSION_SIGNING_KEY)
-    if (guardError) return c.json(guardError.body, guardError.status)
-    if (!code) return errorResponse(c, AppErrors.MISSING_CODE)
+    if (guardError) return c.json(guardError, 400)
+    if (!code) return errorResponse(c, GoogleErrors.OAUTH_CODE_MISSING)
 
     const tokens = await exchangeCodeForTokens(code, c.env, fetchImpl)
     if (!tokens) return errorResponse(c, GoogleErrors.TOKEN_EXCHANGE_FAILED)
@@ -137,26 +137,26 @@ async function mintCsrfGuard(signingKey: string): Promise<string> {
   return signJwt({ exp: now + CSRF_GUARD_TTL_SECONDS }, signingKey, 'HS256')
 }
 
-type ErrorResponse = { body: { error: string; reason?: string }; status: 400 }
+type CsrfError = { error: string; reason?: string }
 
 async function verifyCsrfGuard(
   stateParam: string | undefined,
   guardCookie: string | undefined,
   signingKey: string,
-): Promise<ErrorResponse | null> {
+): Promise<CsrfError | null> {
   if (!stateParam || !guardCookie) {
     console.error('OAuth callback missing state param or CSRF cookie')
-    return { body: { error: 'missing_params' }, status: 400 }
+    return { error: 'missing_params' }
   }
   if (stateParam !== guardCookie) {
     console.error('CSRF guard mismatch: state param does not match cookie')
-    return { body: { error: 'state_mismatch' }, status: 400 }
+    return { error: 'state_mismatch' }
   }
   try {
     await verifyJwt(stateParam, signingKey, 'HS256')
   } catch (err) {
     const reason = err instanceof JwtTokenExpired ? 'expired' : 'invalid'
-    return { body: { error: 'invalid_state', reason }, status: 400 }
+    return { error: 'invalid_state', reason }
   }
   return null
 }
