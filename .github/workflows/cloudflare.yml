@@ -26,16 +26,14 @@ jobs:
       - name: Build web
         run: pnpm --filter @akari-garden/web build
 
-      # See cloudflare-pages.yml history for why this calls wrangler
-      # via `pnpm dlx` rather than cloudflare/wrangler-action@v3
-      # (the action's `pnpm add` install step fails in workspaces).
+      # note: wrangler is installed by pnpm install above since it's a root devDependency
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
-          pnpm dlx wrangler@latest pages deploy web/dist \
+          pnpm exec wrangler pages deploy web/dist \
             --project-name=akari-garden \
             --branch="$BRANCH_NAME" \
             --commit-dirty=true
@@ -75,21 +73,21 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm dlx wrangler@latest kv key put --binding CONFIG_KV disable_server "1"
+        run: pnpm exec wrangler kv key put --binding CONFIG_KV disable_server "1"
 
       - name: Apply D1 migrations
         working-directory: server
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm dlx wrangler@latest d1 migrations apply akari-garden-db --remote
+        run: pnpm exec wrangler d1 migrations apply akari-garden-db --remote
 
       - name: Deploy Worker
         working-directory: server
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm dlx wrangler@latest deploy
+        run: pnpm exec wrangler deploy
 
       # always() ensures this runs even if a previous step failed, so the
       # site is not left down after a broken migration or deploy.
@@ -99,4 +97,4 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm dlx wrangler@latest kv key put --binding CONFIG_KV disable_server "0"
+        run: pnpm exec wrangler kv key put --binding CONFIG_KV disable_server "0"

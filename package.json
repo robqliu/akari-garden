@@ -6,6 +6,7 @@
     "lint:md": "markdownlint-cli2"
   },
   "devDependencies": {
-    "markdownlint-cli2": "^0.22.1"
+    "markdownlint-cli2": "^0.22.1",
+    "wrangler": "^4.97.0"
   }
 }

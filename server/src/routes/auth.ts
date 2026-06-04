@@ -10,6 +10,7 @@ import { sign as signJwt, verify as verifyJwt } from 'hono/utils/jwt/jwt'
 import { JwtTokenExpired } from 'hono/utils/jwt/types'
 
 import type { AppEnv, Bindings } from '../lib/env.js'
+import { GoogleErrors, errorResponse } from '../lib/errors.js'
 import {
   deleteSession,
   getAuthenticatedUser,
@@ -55,14 +56,14 @@ export function buildAuthRouter(fetchImpl: typeof fetch = fetch): Hono<AppEnv> {
     deleteCookie(c, CSRF_GUARD_COOKIE, { path: '/' })
 
     const guardError = await verifyCsrfGuard(stateParam, guardCookie, c.env.SESSION_SIGNING_KEY)
-    if (guardError) return c.json(guardError.body, guardError.status)
-    if (!code) return c.json({ error: 'missing_code' }, 400)
+    if (guardError) return c.json(guardError, 400)
+    if (!code) return errorResponse(c, GoogleErrors.OAUTH_CODE_MISSING)
 
     const tokens = await exchangeCodeForTokens(code, c.env, fetchImpl)
-    if (!tokens) return c.json({ error: 'token_exchange_failed' }, 502)
+    if (!tokens) return errorResponse(c, GoogleErrors.TOKEN_EXCHANGE_FAILED)
 
     const userId = extractGoogleSub(tokens.id_token)
-    if (!userId) return c.json({ error: 'invalid_id_token' }, 502)
+    if (!userId) return errorResponse(c, GoogleErrors.ID_TOKEN_INVALID, { idToken: tokens.id_token })
 
     // Merge with existing record to preserve fields like calendarId
     // that were set between the user's previous login and this one.
@@ -136,25 +137,26 @@ async function mintCsrfGuard(signingKey: string): Promise<string> {
   return signJwt({ exp: now + CSRF_GUARD_TTL_SECONDS }, signingKey, 'HS256')
 }
 
-type ErrorResponse = { body: { error: string; reason?: string }; status: 400 }
+type CsrfError = { error: string; reason?: string }
 
 async function verifyCsrfGuard(
   stateParam: string | undefined,
   guardCookie: string | undefined,
   signingKey: string,
-): Promise<ErrorResponse | null> {
+): Promise<CsrfError | null> {
   if (!stateParam || !guardCookie) {
-    return { body: { error: 'missing_params' }, status: 400 }
+    console.error('OAuth callback missing state param or CSRF cookie')
+    return { error: 'missing_params' }
   }
   if (stateParam !== guardCookie) {
     console.error('CSRF guard mismatch: state param does not match cookie')
-    return { body: { error: 'state_mismatch' }, status: 400 }
+    return { error: 'state_mismatch' }
   }
   try {
     await verifyJwt(stateParam, signingKey, 'HS256')
   } catch (err) {
     const reason = err instanceof JwtTokenExpired ? 'expired' : 'invalid'
-    return { body: { error: 'invalid_state', reason }, status: 400 }
+    return { error: 'invalid_state', reason }
   }
   return null
 }
@@ -193,7 +195,8 @@ function extractGoogleSub(idToken: string): string | null {
   try {
     const payload = JSON.parse(atob(idToken.split('.')[1])) as { sub?: string }
     return payload.sub ?? null
-  } catch {
+  } catch (err) {
+    console.error('Failed to parse Google ID token:', err)
     return null
   }
 }

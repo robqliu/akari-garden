@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
 import type { AppEnv } from './lib/env.js'
+import { AppErrors, errorResponse } from './lib/errors.js'
 import { buildAuthRouter } from './routes/auth.js'
 import { buildCalendarRouter } from './routes/calendar.js'
 import { buildNotesRouter } from './routes/notes.js'
@@ -19,9 +20,10 @@ export function buildApp(fetchImpl?: typeof fetch): Hono<AppEnv> {
   // ensure the Worker has seen the updated flag before it re-enables traffic.
   app.use('*', async (c, next) => {
     const disabled = await c.env.CONFIG_KV.get('disable_server')
-    if (disabled === '1') return c.json({ error: 'maintenance' }, 503)
+    if (disabled === '1') return errorResponse(c, AppErrors.MAINTENANCE)
     await next()
   })
+  app.onError((err, c) => errorResponse(c, AppErrors.INTERNAL_ERROR, { error: err }))
   app.get('/health', (c) => c.json({ status: 'ok' }))
   app.route('/api/auth', buildAuthRouter(fetchImpl))
   // TODO: not used by frontend anymore. Replaced by the task-related endpoints.
