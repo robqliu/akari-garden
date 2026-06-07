@@ -12,6 +12,9 @@ const MELON1_Y = PATH + LABEL_M                     // 45
 const MELON2_Y = MELON1_Y + MELON_H + GAP           // 170
 const LOWER_Y  = MELON2_Y + MELON_H + GAP           // 295
 
+const HALF_BED_W = BED_W / 2
+const BED_MID_X  = BED_X + HALF_BED_W
+
 const SPLIT_W  = 95
 const SPLIT_H  = 500
 const HALF_H   = SPLIT_H / 2                        // 250
@@ -60,19 +63,22 @@ export default function FarmLayout() {
         <text x={BED_X + BED_W / 2} y={PATH * 0.72} textAnchor="middle" fontSize={11} fontWeight={700} fontStyle="italic" fill="#94a3b8">通路 30cm</text>
         <text x={PATH / 2} y={VIEW_H / 2} textAnchor="middle" fontSize={11} fontWeight={700} fontStyle="italic" fill="#94a3b8" transform={`rotate(-90, ${PATH / 2}, ${VIEW_H / 2})`}>通路 30cm</text>
 
-        {/* ── メロン（ユウカ） ────────────────────────────── */}
-        <rect x={BED_X} y={MELON1_Y} width={BED_W} height={MELON_H} rx={4} fill="#f0fdf4" stroke="#22c55e" strokeWidth={1.5} />
-        <text x={BED_X + BED_W / 2} y={MELON1_Y + 28} textAnchor="middle" fontSize={20} fontWeight={700} fill="#166534">メロン（ユウカ）</text>
-        <text x={BED_X + BED_W / 2} y={MELON1_Y + 46} textAnchor="middle" fontSize={13} fill="#166534">株間70cm</text>
-        {hDots(4, BED_X, MELON1_Y + MELON_H * 0.78, BED_W, 9, '#16a34a')}
-        <SizeLabel x={RIGHT_X} y={MELON1_Y - 3} text="95cm × 4m" color="#16a34a" />
+        {/* ── にんじん ─────────────────────────────────── */}
+        <rect x={BED_MID_X} y={MELON1_Y} width={HALF_BED_W} height={MELON_H} rx={4} fill="#fff7ed" stroke="#fb923c" strokeWidth={1.5} />
+        <text x={BED_MID_X + HALF_BED_W / 2} y={MELON1_Y + 24} textAnchor="middle" fontSize={16} fontWeight={700} fill="#9a3412">にんじん</text>
+        <line x1={BED_MID_X + 6} y1={MELON1_Y + MELON_H * 0.58} x2={BED_MID_X + HALF_BED_W - 6} y2={MELON1_Y + MELON_H * 0.58} stroke="#ea580c" strokeWidth={6} />
+        <line x1={BED_MID_X + 6} y1={MELON1_Y + MELON_H * 0.82} x2={BED_MID_X + HALF_BED_W - 6} y2={MELON1_Y + MELON_H * 0.82} stroke="#ea580c" strokeWidth={6} />
+        <SizeLabel x={RIGHT_X} y={MELON1_Y - 3} text="95cm × 2m" color="#ea580c" />
 
-        {/* ── メロン（プリンス） ──────────────────────────── */}
+        {/* ── メロン（ユウカ / プリンス） ─────────────────── */}
         <rect x={BED_X} y={MELON2_Y} width={BED_W} height={MELON_H} rx={4} fill="#f0fdf4" stroke="#22c55e" strokeWidth={1.5} />
-        <text x={BED_X + BED_W / 2} y={MELON2_Y + 28} textAnchor="middle" fontSize={20} fontWeight={700} fill="#166534">メロン（プリンス）</text>
-        <text x={BED_X + BED_W / 2} y={MELON2_Y + 46} textAnchor="middle" fontSize={13} fill="#166534">株間70cm</text>
-        {hDots(4, BED_X, MELON2_Y + MELON_H * 0.78, BED_W, 9, '#16a34a')}
-        <SizeLabel x={VIEW_W} y={MELON2_Y - 3} text="95cm × 4m" color="#16a34a" />
+        <text x={BED_X + HALF_BED_W / 2} y={MELON2_Y + 28} textAnchor="middle" fontSize={16} fontWeight={700} fill="#166534">メロン（ユウカ）</text>
+        <text x={BED_X + HALF_BED_W / 2} y={MELON2_Y + 46} textAnchor="middle" fontSize={13} fill="#166534">株間70cm</text>
+        {hDots(2, BED_X, MELON2_Y + MELON_H * 0.78, HALF_BED_W, 9, '#16a34a')}
+        <text x={BED_MID_X + HALF_BED_W / 2} y={MELON2_Y + 28} textAnchor="middle" fontSize={16} fontWeight={700} fill="#166534">メロン（プリンス）</text>
+        <text x={BED_MID_X + HALF_BED_W / 2} y={MELON2_Y + 46} textAnchor="middle" fontSize={13} fill="#166534">株間70cm</text>
+        {hDots(2, BED_MID_X, MELON2_Y + MELON_H * 0.78, HALF_BED_W, 9, '#16a34a')}
+        <SizeLabel x={RIGHT_X} y={MELON2_Y - 3} text="95cm × 4m" color="#16a34a" />
 
         {/* ── トマト (top half of split bed) ─────────────── */}
         <rect x={BED_X} y={LOWER_Y} width={SPLIT_W} height={HALF_H} fill="#fff5f5" />
@@ -86,9 +92,7 @@ export default function FarmLayout() {
         <text x={BED_X + SPLIT_W / 2} y={LOWER_Y + HALF_H + 34} textAnchor="middle" fontSize={11} fill="#7e22ce">株間60cm</text>
         {vDots(3, BED_X + SPLIT_W / 2, LOWER_Y + HALF_H, HALF_H, 44, 8, '#7e22ce')}
 
-        {/* split bed outer border + divider, drawn on top of fills */}
-        <line x1={BED_X} y1={LOWER_Y + HALF_H} x2={BED_X + SPLIT_W} y2={LOWER_Y + HALF_H} stroke="#f1f5f9" strokeWidth={1} />
-        <rect x={BED_X} y={LOWER_Y} width={SPLIT_W} height={SPLIT_H} rx={4} fill="none" stroke="#e2e8f0" strokeWidth={1.5} />
+        <rect x={BED_X} y={LOWER_Y} width={SPLIT_W} height={SPLIT_H} rx={4} fill="none" stroke="#94a3b8" strokeWidth={1.5} />
         <SizeLabel x={BED_X + SPLIT_W} y={LOWER_Y - 3} text="5m × 95cm" color="#64748b" />
 
         {/* ── 芋 ─────────────────────────────────────────── */}
