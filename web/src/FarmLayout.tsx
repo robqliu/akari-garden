@@ -90,7 +90,10 @@ export default function FarmLayout() {
         <rect x={BED_X} y={LOWER_Y + HALF_H} width={SPLIT_W} height={HALF_H} fill="#faf5ff" />
         <text x={BED_X + SPLIT_W / 2} y={LOWER_Y + HALF_H + 18} textAnchor="middle" fontSize={14} fontWeight={700} fill="#7e22ce">ナス</text>
         <text x={BED_X + SPLIT_W / 2} y={LOWER_Y + HALF_H + 34} textAnchor="middle" fontSize={11} fill="#7e22ce">株間60cm</text>
-        {vDots(3, BED_X + SPLIT_W / 2, LOWER_Y + HALF_H, HALF_H, 44, 8, '#7e22ce')}
+        <circle cx={BED_X + SPLIT_W * 0.35} cy={LOWER_Y + HALF_H + 85}  r={8} fill="#7e22ce" />
+        <circle cx={BED_X + SPLIT_W * 0.65} cy={LOWER_Y + HALF_H + 126} r={8} fill="#7e22ce" />
+        <circle cx={BED_X + SPLIT_W * 0.35} cy={LOWER_Y + HALF_H + 168} r={8} fill="#7e22ce" />
+        <circle cx={BED_X + SPLIT_W * 0.65} cy={LOWER_Y + HALF_H + 209} r={8} fill="#7e22ce" />
 
         <rect x={BED_X} y={LOWER_Y} width={SPLIT_W} height={SPLIT_H} rx={4} fill="none" stroke="#94a3b8" strokeWidth={1.5} />
         <SizeLabel x={BED_X + SPLIT_W} y={LOWER_Y - 3} text="5m × 95cm" color="#64748b" />
