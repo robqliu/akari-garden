@@ -20,10 +20,10 @@ const POTATO_W = 45
 const POTATO_H = 400
 const POTATO_X = BED_X + BED_W - POTATO_W           // 385
 
-const NEGUI_W  = 200
-const NEGUI_H  = 40
-const NEGUI_X  = BED_X + (BED_W - NEGUI_W) / 2     // 130
-const NEGUI_Y  = LOWER_Y + SPLIT_H - NEGUI_H        // 755
+const NEGI_W  = 200
+const NEGI_H  = 40
+const NEGI_X  = BED_X + (BED_W - NEGI_W) / 2     // 130
+const NEGI_Y  = LOWER_Y + SPLIT_H - NEGI_H        // 755
 
 const RIGHT_X  = PATH + BED_W                       // 430 — right edge of bed area
 const VIEW_W   = RIGHT_X + 4                        // +4 so right strokes aren't clipped
@@ -100,10 +100,10 @@ export default function FarmLayout() {
         <SizeLabel x={RIGHT_X} y={LOWER_Y - 3} text="4m × 45cm" color="#ea580c" />
 
         {/* ── ネギ ────────────────────────────────────────── */}
-        <rect x={NEGUI_X} y={NEGUI_Y} width={NEGUI_W} height={NEGUI_H} rx={4} fill="#f0f9ff" stroke="#38bdf8" strokeWidth={1.5} />
-        <text x={NEGUI_X + NEGUI_W / 2} y={NEGUI_Y + 15} textAnchor="middle" fontSize={14} fontWeight={700} fill="#0c4a6e">ネギ</text>
-        {hDots(4, NEGUI_X, NEGUI_Y + 28, NEGUI_W, 6, '#0284c7')}
-        <SizeLabel x={NEGUI_X + NEGUI_W} y={NEGUI_Y - 3} text="40cm × 200cm" color="#0284c7" />
+        <rect x={NEGI_X} y={NEGI_Y} width={NEGI_W} height={NEGI_H} rx={4} fill="#f0f9ff" stroke="#38bdf8" strokeWidth={1.5} />
+        <text x={NEGI_X + NEGI_W / 2} y={NEGI_Y + 15} textAnchor="middle" fontSize={14} fontWeight={700} fill="#0c4a6e">ネギ</text>
+        {hDots(4, NEGI_X, NEGI_Y + 28, NEGI_W, 6, '#0284c7')}
+        <SizeLabel x={NEGI_X + NEGI_W} y={NEGI_Y - 3} text="40cm × 200cm" color="#0284c7" />
 
         {/* ── outer border + compass ───────────────────────── */}
         <rect x={0} y={0} width={VIEW_W} height={VIEW_H} rx={8} fill="none" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="8 4" />
