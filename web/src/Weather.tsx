@@ -19,7 +19,7 @@ import './Weather.css'
 // Aomori City, Aomori Prefecture, Japan.
 const LATITUDE = 40.8244
 const LONGITUDE = 140.74
-const LOCATION_LABEL = 'Aomori, Japan'
+const LOCATION_LABEL = '青森市、青森県'
 
 // Open-Meteo is free and key-less, and `jma_seamless` sources the
 // underlying forecast from the Japan Meteorological Agency — the
@@ -66,35 +66,35 @@ interface Condition {
 // WMO weather interpretation codes — see
 // https://open-meteo.com/en/docs#weathervariables
 function describeWeather(code: number): Condition {
-  if (code === 0) return { label: 'Clear', Icon: Sun, tone: 'sun' }
-  if (code === 1) return { label: 'Mostly clear', Icon: Sun, tone: 'sun' }
-  if (code === 2) return { label: 'Partly cloudy', Icon: CloudSun, tone: 'cloud' }
-  if (code === 3) return { label: 'Overcast', Icon: Cloud, tone: 'cloud' }
-  if (code === 45 || code === 48) return { label: 'Fog', Icon: CloudFog, tone: 'fog' }
-  if (code >= 51 && code <= 57) return { label: 'Drizzle', Icon: CloudDrizzle, tone: 'rain' }
+  if (code === 0) return { label: '快晴', Icon: Sun, tone: 'sun' }
+  if (code === 1) return { label: '晴れ', Icon: Sun, tone: 'sun' }
+  if (code === 2) return { label: '曇り時々晴れ', Icon: CloudSun, tone: 'cloud' }
+  if (code === 3) return { label: '曇り', Icon: Cloud, tone: 'cloud' }
+  if (code === 45 || code === 48) return { label: '霧', Icon: CloudFog, tone: 'fog' }
+  if (code >= 51 && code <= 57) return { label: '霧雨', Icon: CloudDrizzle, tone: 'rain' }
   if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82))
-    return { label: 'Rain', Icon: CloudRain, tone: 'rain' }
+    return { label: '雨', Icon: CloudRain, tone: 'rain' }
   if ((code >= 71 && code <= 77) || code === 85 || code === 86)
-    return { label: 'Snow', Icon: CloudSnow, tone: 'snow' }
-  if (code === 95) return { label: 'Thunderstorm', Icon: CloudLightning, tone: 'storm' }
+    return { label: '雪', Icon: CloudSnow, tone: 'snow' }
+  if (code === 95) return { label: '雷雨', Icon: CloudLightning, tone: 'storm' }
   if (code === 96 || code === 99)
-    return { label: 'Thunderstorm with hail', Icon: CloudHail, tone: 'storm' }
-  return { label: 'Unknown', Icon: Cloud, tone: 'cloud' }
+    return { label: '雷雨（雹）', Icon: CloudHail, tone: 'storm' }
+  return { label: '不明', Icon: Cloud, tone: 'cloud' }
 }
 
 function formatDate(iso: string): string {
   // Treat the YYYY-MM-DD string as a local date in Asia/Tokyo. Parsing
   // with a midnight local-time stamp avoids UTC offset surprises.
   const date = new Date(`${iso}T00:00:00`)
-  return date.toLocaleDateString(undefined, {
-    weekday: 'long',
+  return date.toLocaleDateString('ja-JP', {
     month: 'long',
     day: 'numeric',
+    weekday: 'long',
   })
 }
 
 function formatWindDirection(deg: number): string {
-  const compass = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+  const compass = ['北', '北東', '東', '南東', '南', '南西', '西', '北西']
   return compass[Math.round(deg / 45) % 8]
 }
 
@@ -157,7 +157,7 @@ function Weather() {
         <div>
           <p className="weather-location">{LOCATION_LABEL}</p>
           <p className="weather-date">
-            {forecast ? formatDate(forecast.date) : 'Today'}
+            {forecast ? formatDate(forecast.date) : '今日'}
           </p>
         </div>
         <button
@@ -165,19 +165,19 @@ function Weather() {
           className="weather-refresh"
           onClick={refresh}
           disabled={loading}
-          aria-label="Refresh forecast"
-          title="Refresh forecast"
+          aria-label="予報を更新"
+          title="予報を更新"
         >
           <RefreshCw size={16} className={loading ? 'spin' : undefined} />
         </button>
       </header>
 
-      {error && <p className="weather-error">Couldn’t load forecast: {error}</p>}
+      {error && <p className="weather-error">予報の取得に失敗しました: {error}</p>}
 
       {!error && forecast && condition && (
         <>
           <div className="weather-main">
-            <condition.Icon size={64} strokeWidth={1.5} className="weather-main-icon" />
+            <condition.Icon size={80} strokeWidth={1.25} className="weather-main-icon" />
             <div>
               <p className="weather-condition">{condition.label}</p>
               <p className="weather-temps">
@@ -192,7 +192,7 @@ function Weather() {
           <dl className="weather-stats">
             <div className="weather-stat">
               <dt>
-                <Wind size={14} aria-hidden /> Wind
+                <Wind size={14} aria-hidden /> 風速
               </dt>
               <dd>
                 {forecast.windSpeedMax?.toFixed(1) ?? '—'} m/s{' '}
@@ -203,7 +203,7 @@ function Weather() {
             </div>
             <div className="weather-stat">
               <dt>
-                <Droplets size={14} aria-hidden /> Rain
+                <Droplets size={14} aria-hidden /> 降水量
               </dt>
               <dd>{forecast.precipitation?.toFixed(1) ?? '—'} mm</dd>
             </div>
@@ -212,12 +212,11 @@ function Weather() {
       )}
 
       {!error && !forecast && loading && (
-        <p className="weather-loading">Loading forecast…</p>
+        <p className="weather-loading">読み込み中…</p>
       )}
 
       <footer className="weather-footer">
-        Data: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>{' '}
-        (JMA model)
+        データ: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>（気象庁モデル）
       </footer>
     </section>
   )
